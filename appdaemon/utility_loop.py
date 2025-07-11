@@ -1,6 +1,7 @@
 """Module to handle utility functions within AppDaemon."""
 
 import asyncio
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 import datetime
 import traceback
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class LoopTiming:
+    """Wrapper object for recording the timing of operations in the utility loop."""
     _start_time: float = field(default_factory=perf_counter)
     times: dict[str, float] = field(default_factory=dict)
 
@@ -115,11 +117,7 @@ class Utility:
             self.stop_event.clear()
 
     async def get_uptime(self) -> timedelta:
-        """Utility function to return the uptime of AppDaemon
-
-        Returns:
-            datetime.timedelta: The uptime of AppDaemon
-
+        """Get the uptime of AppDaemon as a timedelta.
         """
         if self.booted is not None:
             uptime = (await self.AD.sched.get_now()) - self.booted
@@ -145,13 +143,11 @@ class Utility:
         await self.AD.state.add_entity("admin", "sensor.appdaemon_booted", boot_time_str)
 
     async def _register_services(self):
+        """Register core AppDaemon services for state management, events, sequences, and admin functions.
+        """
+        # Register state services
         for ns in self.AD.state.list_namespaces():
-            #
-            # Register state services
-            #
-
             # only default, rules or it belongs to a local plugin. Don't allow for admin/appdaemon/global namespaces
-
             if ns in ["default", "rules"] or ns in self.AD.plugins.plugin_objs or ns in self.AD.namespaces:
                 self.AD.services.register_service(ns, "state", "add_namespace", self.AD.state.state_services)
                 self.AD.services.register_service(ns, "state", "add_entity", self.AD.state.state_services)
@@ -159,35 +155,30 @@ class Utility:
                 self.AD.services.register_service(ns, "state", "remove_namespace", self.AD.state.state_services)
                 self.AD.services.register_service(ns, "state", "remove_entity", self.AD.state.state_services)
 
-            #
             # Register fire_event services
-            #
-
             self.AD.services.register_service(ns, "event", "fire", self.AD.events.event_services)
 
-        #
         # Register run_sequence service
-        #
         self.AD.services.register_service("rules", "sequence", "run", self.AD.sequences.run_sequence_service)
         self.AD.services.register_service("rules", "sequence", "cancel", self.AD.sequences.run_sequence_service)
 
-        #
         # Register production_mode service
-        #
         self.AD.services.register_service("admin", "production_mode", "set", self.production_mode_service)
 
-        #
         # Register logging services
-        #
         self.AD.services.register_service("admin", "logs", "get_admin", self.AD.logging.manage_services)
 
-    async def loop(self):
-        """The main utility loop.
+    async def _init_loop(self):
+        """Initialize the utility loop components.
 
-        Loops until stop() is called, checks for file changes, overdue threads, thread starvation,
-        and schedules regular state refreshes.
+        Process:
+        - Sets up stats
+        - Starts the web server if configured
+        - Waits for all plugins to initialize
+        - Registers services
+        - Starts the scheduler task
+        - Runs check_app_updates with UpdateMode.INIT if apps are enabled
         """
-
         self.logger.debug("Starting utility loop")
 
         # Setup
@@ -218,18 +209,31 @@ class Utility:
             # Fire APPD Started Event
             await self.AD.events.process_event("global", {"event_type": "appd_started", "data": {}})
 
+    async def loop(self):
+        """The main utility loop.
+
+        Loops until stop() is called, checks for file changes, overdue threads, thread starvation,
+        and schedules regular state refreshes.
+        """
+
+        await self._init_loop()
+
+        if self.stopping:
+            # Debug message will have already been logged
+            return
+
         warning_step = 0
         warning_iterations = 0
 
         # Start the loop proper
         self.logger.debug("Starting timer loop")
         while not self.stopping:
+            # _loop_iteration_context handles warnings, errors, and timing the loop
             async with self._loop_iteration_context() as timing:
-                if self.AD.apps is True:
-                    if not self.AD.production_mode:
-                        # Check to see if config has changed
-                        await self.AD.app_management.check_app_updates()
-                        timing.record_time("check_app_updates")
+                if not self.AD.config.disable_apps and not self.AD.production_mode:
+                    # Check to see if config has changed
+                    await self.AD.app_management.check_app_updates()
+                    timing.record_time("check_app_updates")
 
                 # Call me suspicious, but lets update state from the plugins periodically
                 await self.AD.plugins.update_plugin_state()
@@ -261,8 +265,18 @@ class Utility:
                 )
 
     @asynccontextmanager
-    async def _loop_iteration_context(self):
-        """Context manager for handling loop iteration timing and cleanup."""
+    async def _loop_iteration_context(self) -> AsyncGenerator[LoopTiming]:
+        """Context manager for running the utility loop.
+
+        Notes:
+        - Contains logic for warnings
+            - Exceptions are logged with tracebacks, but not raised
+            - Warnings are logged if the utility loop takes too long
+        - Handles the timing of the utility loop
+
+        Yields:
+            LoopTiming: Timing object for recording operation timestamps.
+        """
         try:
             self.app_update_event.clear()
             timing = LoopTiming()
