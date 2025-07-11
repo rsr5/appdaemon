@@ -788,7 +788,12 @@ class AppManagement:
         return wrapper
 
     # @utils.timeit
-    async def check_app_updates(self, plugin_ns: str | None = None, mode: UpdateMode = UpdateMode.NORMAL):
+    async def check_app_updates(
+        self,
+        plugin_ns: str | None = None,
+        mode: UpdateMode = UpdateMode.NORMAL,
+        update_actions: UpdateActions | None = None,
+    ) -> None:
         """Checks the states of the Python files that define the apps, reloading when necessary.
 
         Called as part of :meth:`.utility_loop.Utility.loop`
@@ -813,7 +818,7 @@ class AppManagement:
         async with self.check_updates_lock:
             await self._process_filters()
 
-            update_actions = UpdateActions()
+            update_actions = UpdateActions() if update_actions is None else update_actions
 
             match mode:
                 case UpdateMode.INIT | UpdateMode.TESTING:
@@ -1342,8 +1347,8 @@ class AppManagement:
         """Enable a disabled app by setting its disable flag to False."""
         self.update_app(app, disable=False)
 
-    @contextlib.contextmanager
-    def app_state_context(self, app: str, **kwargs):
+    @contextlib.asynccontextmanager
+    async def app_state_context(self, app: str, **kwargs):
         """
         Context manager that temporarily updates an app's configuration during the context window.
 

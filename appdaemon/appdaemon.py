@@ -404,10 +404,9 @@ class AppDaemon(metaclass=Singleton):
             None after the instance has been running for the specified duration
         """
         try:
-            await self.app_management.check_app_updates(mode=UpdateMode.TESTING)
-            await self.sched.set_start_time()
-
-            with self.app_management.app_state_context(app_name, disable=False):
+            async with self.app_management.app_state_context(app_name, disable=False):
+                await self.app_management.check_app_updates(mode=UpdateMode.TESTING)
+                await self.sched.set_start_time()
                 self.start()
                 self.logger.debug(f"Running AppDaemon for {duration} seconds")
                 await asyncio.sleep(duration)
