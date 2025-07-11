@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import cProfile
 import importlib
 import inspect
@@ -1314,11 +1315,83 @@ class AppManagement:
         return executed
 
     def update_app(self, app: str, **kwargs):
+        """
+        Update the configuration of a specified app with new keyword arguments.
+
+        Args:
+            app (str): The name of the app to update.
+            **kwargs: Arbitrary keyword arguments representing configuration fields to update.
+
+        Notes:
+            - Dumps the app's configuration to a dict, merges the kwargs into it, and validates the result.
+            - Unlike edit_app, this method does not write to a file but updates the in-memory configuration.
+            - Logs warnings if the app is not found or if validation fails.
+        """
         match self.app_config.root.get(app):
             case AppConfig() as app_cfg:
                 original = app_cfg.model_dump(mode='python', by_alias=True)
                 updated = original | kwargs
-                self.app_config.root[app] = AppConfig.model_validate(updated)
+                try:
+                    self.app_config.root[app] = AppConfig.model_validate(updated)
+                except ValidationError as e:
+                    self.logger.warning("Failed to update app '%s': %s", app, e)
+            case None:
+                self.logger.warning("App '%s' not found in configuration", app)
+
+    def enable_app(self, app: str):
+        """Enable a disabled app by setting its disable flag to False."""
+        self.update_app(app, disable=False)
+
+    @contextlib.contextmanager
+    def app_state_context(self, app: str, **kwargs):
+        """
+        Context manager that temporarily updates an app's configuration during the context window.
+
+        Args:
+            app (str): The name of the app to manage.
+            **kwargs: Arbitrary keyword arguments representing configuration fields to update temporarily.
+
+        Usage:
+            # Temporarily enable an app
+            with self.app_state_context("my_app", disable=False):
+                # App is enabled during this block
+                pass
+            # App is restored to its original state
+
+            # Temporarily disable an app
+            with self.app_state_context("my_app", disable=True):
+                # App is disabled during this block
+                pass
+            # App is restored to its original state
+
+            # Update multiple configuration fields
+            with self.app_state_context("my_app", disable=False, pin_thread=2):
+                # App has updated config during this block
+                pass
+            # App is restored to its original state
+        """
+        # Get the current state of the app
+        match self.app_config.root.get(app):
+            case AppConfig() as app_cfg:
+                # Store the complete original configuration
+                original_config = app_cfg.model_dump(mode='python', by_alias=True)
+            case _:
+                self.logger.warning("App '%s' not found in configuration or is not a regular app", app)
+                yield
+                return
+
+        try:
+            # Set the desired state
+            self.update_app(app, **kwargs)
+            self.logger.debug("Temporarily updated app '%s' with: %s", app, kwargs)
+            yield
+        finally:
+            # Restore the complete original state
+            try:
+                self.app_config.root[app] = AppConfig.model_validate(original_config)
+                self.logger.debug("Restored app '%s' to original state", app)
+            except ValidationError as e:
+                self.logger.warning("Failed to restore app '%s' to original state: %s", app, e)
 
     @utils.executor_decorator
     def remove_app(self, app: str, **kwargs):

@@ -3,12 +3,13 @@ import os
 import threading
 from asyncio import AbstractEventLoop
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
 from pathlib import Path
 from threading import RLock
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, AsyncGenerator
 
 from appdaemon.admin_loop import AdminLoop
-from appdaemon.app_management import AppManagement
+from appdaemon.app_management import AppManagement, UpdateMode
 from appdaemon.callbacks import Callbacks
 from appdaemon.events import Events
 from appdaemon.futures import Futures
@@ -384,6 +385,42 @@ class AppDaemon(metaclass=Singleton):
     def terminate(self):
         if self.state is not None:
             self.state.terminate()
+
+    @asynccontextmanager
+    async def run_for_time(self, app_name: str, duration: float) -> AsyncGenerator[None, None]:
+        """Run the AppDaemon instance for a specified duration.
+
+        Args:
+            duration: The duration in seconds to run the AppDaemon instance
+
+        Yields:
+            None after the instance has been running for the specified duration
+        """
+        try:
+            await self.app_management.check_app_updates(mode=UpdateMode.TESTING)
+            await self.sched.set_start_time()
+
+            with self.app_management.app_state_context(app_name, disable=False):
+                self.start()
+                self.logger.debug(f"Running AppDaemon for {duration} seconds")
+                await asyncio.sleep(duration)
+                yield
+        finally:
+            self.logger.debug("Stopping AppDaemon")
+            if stopping_tasks := self.stop():
+                try:
+                    await asyncio.wait_for(stopping_tasks, timeout=2)
+                except TimeoutError:
+                    self.logger.warning("AppDaemon did not stop in time")
+            self._log_running_tasks()
+            self.logger.debug("AppDaemon stopped")
+
+    def _log_running_tasks(self):
+        """Log information about currently running asyncio tasks."""
+        tasks = asyncio.all_tasks()
+        self.logger.debug(f"Running tasks: {len(tasks)}")
+        for task in tasks:
+            self.logger.debug(f"Name: {task.get_name():<20}, Done: {task.done()}, Cancelled: {task.cancelled()}, Result: {task.result() if task.done() else 'N/A'}")
 
     #
     # Utilities
