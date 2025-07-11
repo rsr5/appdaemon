@@ -1,8 +1,10 @@
 """Module to handle utility functions within AppDaemon."""
 
 import asyncio
+from dataclasses import dataclass, field
 import datetime
 import traceback
+from contextlib import asynccontextmanager
 from datetime import timedelta
 from logging import Logger
 from time import perf_counter
@@ -14,6 +16,31 @@ from .app_management import UpdateMode
 
 if TYPE_CHECKING:
     from .appdaemon import AppDaemon
+
+
+@dataclass
+class LoopTiming:
+    _start_time: float = field(default_factory=perf_counter)
+    times: dict[str, float] = field(default_factory=dict)
+
+    def record_time(self, name: str):
+        """Record the current time for a specific operation."""
+        self.times[name] = perf_counter() - self._start_time
+
+    def timedelta(self, name: str) -> timedelta:
+        """Get the recorded time as a timedelta."""
+        return utils.parse_timedelta(self.times.get(name, 0.0))
+
+    def get_time_strs(self) -> tuple[str, str, str]:
+        assert "total" in self.times, "Total time must be recorded first"
+        total = self.times["total"]
+        check_app_updates = self.times.get("check_app_updates", 0.0)
+        other = total - check_app_updates
+        return (
+            utils.format_timedelta(total),
+            utils.format_timedelta(check_app_updates),
+            utils.format_timedelta(other),
+        )
 
 
 class Utility:
@@ -197,16 +224,12 @@ class Utility:
         # Start the loop proper
         self.logger.debug("Starting timer loop")
         while not self.stopping:
-            self.app_update_event.clear()
-            loop_start = perf_counter()
-            check_app_duration = timedelta()
-            try:
+            async with self._loop_iteration_context() as timing:
                 if self.AD.apps is True:
                     if not self.AD.production_mode:
                         # Check to see if config has changed
-                        check_app_start = perf_counter()
                         await self.AD.app_management.check_app_updates()
-                        check_app_duration = timedelta(seconds=perf_counter() - check_app_start)
+                        timing.record_time("check_app_updates")
 
                 # Call me suspicious, but lets update state from the plugins periodically
                 await self.AD.plugins.update_plugin_state()
@@ -237,43 +260,45 @@ class Utility:
                     state=str(await self.get_uptime()),
                 )
 
-            except ade.AppDaemonException as exc:
-                ade.user_exception_block(self.AD.logging.error, exc, self.AD.app_dir)
-            except Exception:
-                self.logger.warning("-" * 60)
-                self.logger.warning("Unexpected error during utility()")
-                self.logger.warning("-" * 60)
-                self.logger.warning(traceback.format_exc())
-                self.logger.warning("-" * 60)
-            finally:
-                self.app_update_event.set()
-                loop_duration = timedelta(seconds=perf_counter() - loop_start)
-                other_duration = loop_duration - check_app_duration
+    @asynccontextmanager
+    async def _loop_iteration_context(self):
+        """Context manager for handling loop iteration timing and cleanup."""
+        try:
+            self.app_update_event.clear()
+            timing = LoopTiming()
+            yield timing
+        except ade.AppDaemonException as exc:
+            ade.user_exception_block(self.AD.logging.error, exc, self.AD.app_dir)
+        except Exception:
+            self.logger.warning("-" * 60)
+            self.logger.warning("Unexpected error during utility()")
+            self.logger.warning("-" * 60)
+            self.logger.warning(traceback.format_exc())
+            self.logger.warning("-" * 60)
+        finally:
+            self.app_update_event.set()
+            timing.record_time("total")
 
-                self.logger.debug(
-                    "Util loop compute time: %s, check_app_updates: %s, other: %s",
-                    utils.format_timedelta(loop_duration),
-                    utils.format_timedelta(check_app_duration),
-                    utils.format_timedelta(other_duration),
+            self.logger.debug(
+                "Util loop compute time: %s, check_app_updates: %s, other: %s",
+                timing.get_time_strs()
+            )
+            if self.AD.real_time and timing.timedelta("total") > self.AD.max_utility_skew:
+                self.logger.warning(
+                    "Excessive time spent in utility loop: %s, %s in check_app_updates(), %s in other",
+                    timing.get_time_strs()
                 )
-                if self.AD.real_time and loop_duration > self.AD.max_utility_skew:
-                    self.logger.warning(
-                        "Excessive time spent in utility loop: %s, %s in check_app_updates(), %s in other",
-                        utils.format_timedelta(loop_duration),
-                        utils.format_timedelta(check_app_duration),
-                        utils.format_timedelta(other_duration),
-                    )
-                    if self.AD.check_app_updates_profile:
-                        self.logger.info("Profile information for Utility Loop")
-                        self.logger.info(self.AD.app_management.check_app_updates_profile_stats)
-                else:
-                    try:
-                        if not self.stopping:
-                            # Instead of sleeping, we wait for the stop event to get set with a timeout.
-                            await asyncio.wait_for(self.stop_event.wait(), self.AD.utility_delay)
-                    except TimeoutError:
-                        # We expect the timeout to occur unless the stop event gets set while we're waiting
-                        pass
+                if self.AD.check_app_updates_profile:
+                    self.logger.info("Profile information for Utility Loop")
+                    self.logger.info(self.AD.app_management.check_app_updates_profile_stats)
+            else:
+                try:
+                    if not self.stopping:
+                        # Instead of sleeping, we wait for the stop event to get set with a timeout.
+                        await asyncio.wait_for(self.stop_event.wait(), self.AD.utility_delay)
+                except TimeoutError:
+                    # We expect the timeout to occur unless the stop event gets set while we're waiting
+                    pass
 
     async def production_mode_service(self, ns, domain, service, kwargs):
         match kwargs:
