@@ -807,7 +807,7 @@ class AppManagement:
             plugin_ns (str, optional): Namespace of a plugin to restart, if necessary. Defaults to None.
             mode (UpdateMode, optional): Defaults to UpdateMode.NORMAL.
         """
-        if not self.AD.apps:
+        if not self.AD.apps_enabled:
             return
 
         async with self.check_updates_lock:

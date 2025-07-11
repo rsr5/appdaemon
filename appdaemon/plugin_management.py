@@ -302,7 +302,7 @@ class PluginManagement:
                     #
                     # Create app entry for the plugin so we can listen_state/event
                     #
-                    if not self.AD.config.disable_apps:
+                    if self.AD.apps_enabled:
                         self.AD.app_management.add_plugin_object(
                             name,
                             plugin,

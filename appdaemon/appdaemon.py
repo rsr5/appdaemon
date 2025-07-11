@@ -125,7 +125,7 @@ class AppDaemon(metaclass=Singleton):
         self.thread_async = ThreadAsync(self)
         self.futures = Futures(self)
 
-        if not self.apps:
+        if not self.apps_enabled:
             self.logger.info("Apps are disabled, skipping app management initialization")
         else:
             assert self.config_dir is not None, "Config_dir not set. This is a development problem"
@@ -175,9 +175,16 @@ class AppDaemon(metaclass=Singleton):
         self.config.app_dir = Path(path)
 
     @property
-    def apps(self):
+    def apps_enabled(self):
         """Flag for whether ``disable_apps`` was set in the AppDaemon config"""
         return not self.config.disable_apps
+
+    @apps_enabled.setter
+    def apps_enabled(self, value: bool) -> None:
+        """Set whether apps are enabled or disabled"""
+        self.config.disable_apps = not value
+        action = "enabled" if value else "disabled"
+        self.logger.info(f"Apps {action}")
 
     @property
     def certpath(self):

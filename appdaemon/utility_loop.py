@@ -86,7 +86,7 @@ class Utility:
             self.logger.debug("Utility loop completed successfully")
 
         # Stop apps
-        if self.AD.apps:
+        if self.AD.apps_enabled:
             self.AD.loop.create_task(self.AD.app_management.terminate(), name="app_management terminate")
 
         # Shutdown webserver
@@ -129,7 +129,7 @@ class Utility:
     async def _init_stats(self):
         # This method was originally part of self.loop
         await self.AD.threading.init_admin_stats()
-        if not self.AD.config.disable_apps:
+        if self.AD.apps_enabled:
             await self.AD.threading.create_initial_threads()
             await self.AD.app_management.init_admin_stats()
         else:
@@ -200,7 +200,7 @@ class Utility:
         # Start the scheduler
         self.AD.loop.create_task(self.AD.sched.loop(), name="scheduler loop")
 
-        if self.AD.apps is True:
+        if self.AD.apps_enabled:
             self.logger.debug("Reading apps - calling check_app_updates with UpdateMode.INIT")
             await self.AD.app_management.check_app_updates(mode=UpdateMode.INIT)
 
@@ -230,7 +230,7 @@ class Utility:
         while not self.stopping:
             # _loop_iteration_context handles warnings, errors, and timing the loop
             async with self._loop_iteration_context() as timing:
-                if not self.AD.config.disable_apps and not self.AD.production_mode:
+                if self.AD.apps_enabled and not self.AD.production_mode:
                     # Check to see if config has changed
                     await self.AD.app_management.check_app_updates()
                     timing.record_time("check_app_updates")
