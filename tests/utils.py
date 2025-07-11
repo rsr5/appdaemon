@@ -65,7 +65,7 @@ async def pseudo_run(ad_obj: AppDaemon, app_name: str, duration: float) -> Async
 
         actions = UpdateActions()
         actions.apps.init.add(app_name)
-        await ad_obj.app_management._start_apps(actions)
+        await ad_obj.app_management._create_and_start_apps(actions)
         # ad_obj.start()
 
         duration_str = utils.format_timedelta(timedelta(seconds=duration))
