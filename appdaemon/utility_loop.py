@@ -59,6 +59,7 @@ class Utility:
     loop_task: asyncio.Task
     app_update_event: asyncio.Event
     stop_event: asyncio.Event
+    name: str = "_utility"
 
     def __init__(self, ad: "AppDaemon"):
         """Constructor.
@@ -67,7 +68,7 @@ class Utility:
             ad: Reference to the AppDaemon object
         """
         self.AD = ad
-        self.logger = ad.logging.get_child("_utility")
+        self.logger = ad.logging.get_child(self.name)
         self.booted = None
 
         self.app_update_event = asyncio.Event()
@@ -88,10 +89,6 @@ class Utility:
         # Stop apps
         if self.AD.apps_enabled:
             self.AD.loop.create_task(self.AD.app_management.terminate(), name="app_management terminate")
-
-        # Shutdown webserver
-        if self.AD.http is not None and self.AD.http.has_been_started:
-            self.AD.loop.create_task(self.AD.http.stop_server(), name="http stop server")
 
     def stop(self):
         """Called by the AppDaemon object to terminate the loop cleanly
@@ -186,7 +183,8 @@ class Utility:
 
         # Start the web server
         if self.AD.http is not None and not self.AD.http.has_been_started:
-            await self.AD.http.start_server()
+            http_start_event = self.AD.exit_stack.enter_context(self.AD.http)
+            await http_start_event.wait()
 
         # Wait for all plugins to initialize
         await self.AD.plugins.wait_for_plugins()

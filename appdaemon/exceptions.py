@@ -525,3 +525,11 @@ class BadSequenceStepDefinition(AppDaemonException):
 class SequenceStepExecutionFail(AppDaemonException):
     n: int
     step: Any
+
+
+@dataclass
+class NoADConfig(AppDaemonException):
+    msg: str
+
+    def __str__(self):
+        return self.msg

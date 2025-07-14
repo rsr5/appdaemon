@@ -6,6 +6,7 @@ import functools
 import inspect
 import io
 import json
+import logging
 import os
 import platform
 import pstats
@@ -39,6 +40,9 @@ from appdaemon.version import (
 )
 
 from . import exceptions as ade
+
+logger = logging.getLogger("AppDaemon._utility")
+file_log = logger.getChild("file")
 
 if TYPE_CHECKING:
     from .adbase import ADBase
@@ -1277,6 +1281,7 @@ def read_yaml_config(file: Path) -> Dict[str, Dict]:
     #
     yaml.add_constructor("!secret", _dummy_secret, Loader=yaml.SafeLoader)
     with file.open("r") as yamlfd:
+        file_log.debug("Reading config file: %s", file)
         config = yaml.safe_load(yamlfd)
 
     # No need to keep processing if the file is empty

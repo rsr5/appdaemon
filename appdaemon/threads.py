@@ -133,12 +133,13 @@ class Threading:
             fired_avg = round(fired_sum / total_duration, 1)
             executed_avg = round(executed_sum / total_duration, 1)
 
-        await self.set_state("_threading", "admin", "sensor.callbacks_average_fired", state=fired_avg)
+        await self.set_state("_threading", "admin", "sensor.callbacks_average_fired", state=fired_avg, _silent=True)
         await self.set_state(
             "_threading",
             "admin",
             "sensor.callbacks_average_executed",
             state=executed_avg,
+            _silent=True,
         )
 
         self.last_stats_time = now
