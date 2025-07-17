@@ -58,7 +58,6 @@ class Utility:
     logger: Logger
     loop_task: asyncio.Task
     app_update_event: asyncio.Event
-    stop_event: asyncio.Event
     name: str = "_utility"
 
     def __init__(self, ad: "AppDaemon"):
@@ -72,7 +71,6 @@ class Utility:
         self.booted = None
 
         self.app_update_event = asyncio.Event()
-        self.stop_event = asyncio.Event()
 
     def start(self):
         self.loop_task = self.AD.loop.create_task(self.loop(), name="utility_loop")
@@ -89,29 +87,6 @@ class Utility:
         # Stop apps
         if self.AD.apps_enabled:
             self.AD.loop.create_task(self.AD.app_management.terminate(), name="app_management terminate")
-
-    def stop(self):
-        """Called by the AppDaemon object to terminate the loop cleanly
-
-        Returns:
-            None
-
-        """
-
-        self.logger.debug("stop() called for utility")
-        # Setting this to True will cause the while loop in self.loop() to break
-        self.stopping = True
-
-    @property
-    def stopping(self) -> bool:
-        return self.stop_event.is_set()
-
-    @stopping.setter
-    def stopping(self, value: bool) -> None:
-        if value:
-            self.stop_event.set()
-        else:
-            self.stop_event.clear()
 
     async def get_uptime(self) -> timedelta:
         """Get the uptime of AppDaemon as a timedelta.
@@ -189,14 +164,14 @@ class Utility:
         # Wait for all plugins to initialize
         await self.AD.plugins.wait_for_plugins()
 
-        if self.stopping:
-            self.logger.debug("Utility loop already stopping before starting")
+        if self.AD.stopping:
+            self.logger.debug("AppDaemon already stopping before starting utility loop")
             return
 
         await self._register_services()
 
         # Start the scheduler
-        self.AD.loop.create_task(self.AD.sched.loop(), name="scheduler loop")
+        self.AD.sched.start()
 
         if self.AD.apps_enabled:
             self.logger.debug("Reading apps - calling check_app_updates with UpdateMode.INIT")
@@ -216,7 +191,7 @@ class Utility:
 
         await self._init_loop()
 
-        if self.stopping:
+        if self.AD.stopping:
             # Debug message will have already been logged
             return
 
@@ -225,7 +200,7 @@ class Utility:
 
         # Start the loop proper
         self.logger.debug("Starting timer loop")
-        while not self.stopping:
+        while not self.AD.stopping:
             # _loop_iteration_context handles warnings, errors, and timing the loop
             async with self._loop_iteration_context() as timing:
                 if self.AD.apps_enabled and not self.AD.production_mode:
@@ -304,13 +279,8 @@ class Utility:
                     self.logger.info("Profile information for Utility Loop")
                     self.logger.info(self.AD.app_management.check_app_updates_profile_stats)
             else:
-                try:
-                    if not self.stopping:
-                        # Instead of sleeping, we wait for the stop event to get set with a timeout.
-                        await asyncio.wait_for(self.stop_event.wait(), self.AD.utility_delay)
-                except TimeoutError:
-                    # We expect the timeout to occur unless the stop event gets set while we're waiting
-                    pass
+                if not self.AD.stopping:
+                    await self.sleep(self.AD.utility_delay, timeout_ok=True)
 
     async def production_mode_service(self, ns, domain, service, kwargs):
         match kwargs:
@@ -322,3 +292,17 @@ class Utility:
                     self.logger.warning(f"Invalid production mode: {kwargs.get('mode')}")
                 else:
                     self.logger.warning("No production mode specified, use True or False")
+
+    async def sleep(self, delay: float, *, timeout_ok: bool):
+        """Sleep for a specified number of seconds.
+
+        Args:
+            seconds (float): Number of seconds to sleep.
+            timeout_ok (bool): If True, does not raise TimeoutError if the sleep is interrupted by stop_event.
+        """
+        if not self.AD.stopping:
+            try:
+                await asyncio.wait_for(self.AD.stop_event.wait(), timeout=delay)
+            except TimeoutError:
+                if not timeout_ok:
+                    raise

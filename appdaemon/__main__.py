@@ -21,6 +21,7 @@ from collections.abc import Callable
 from contextlib import ExitStack, contextmanager
 from logging import Logger
 from pathlib import Path
+from time import perf_counter
 
 from pydantic import ValidationError
 
@@ -306,6 +307,9 @@ class ADMain:
     model: MainConfig
     args: argparse.Namespace
 
+    stop_time: float = 0.0
+    """Stores the value of perf_counter() when self.stop is first called."""
+
     def __init__(self):
         """Constructor."""
         self.http_object = None
@@ -334,6 +338,8 @@ class ADMain:
         self._cleanup_stack.close()
         del self.model
         del self.args
+        self.loop.close()
+        self.logger.debug("Closed async event loop")
 
     def add_cleanup(self, cleanup_func, *args, **kwargs):
         """Add a cleanup function to be called on exit."""
@@ -395,9 +401,8 @@ class ADMain:
 
     def stop(self):
         """Called by the signal handler to shut AD down."""
+        self.stop_time = perf_counter()
         self.AD.stop()
-        if self.http_object is not None:
-            self.http_object.stop()
 
     def run(self):
         """Start AppDaemon up after initial argument parsing."""
@@ -415,9 +420,10 @@ class ADMain:
         with self.run_context(self.loop):
             self.logger.debug("Start Main Loop")
             self.AD.start()
+            self.loop.run_forever()
 
-            pending = asyncio.all_tasks(self.loop)
-            self.loop.run_until_complete(asyncio.gather(*pending))
+            # pending = asyncio.all_tasks(self.loop)
+            # self.loop.run_until_complete(asyncio.gather(*pending))
 
     @contextmanager
     def run_context(self, loop: asyncio.AbstractEventLoop):
@@ -510,6 +516,9 @@ class ADMain:
 def main():
     with ADMain() as admain:
         admain.main()
+
+    stop_duration = perf_counter() - admain.stop_time
+    admain.logger.info("AppDaemon main() stopped gracefully in %s", utils.format_timedelta(stop_duration))
 
 
 if __name__ == "__main__":

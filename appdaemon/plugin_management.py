@@ -51,9 +51,6 @@ class PluginBase(abc.ABC):
     loaded.
     """
 
-    stopping: bool = False
-    """Flag that indicates whether AppDaemon is currently shutting down."""
-
     def __init__(self, ad: "AppDaemon", name: str, config: PluginConfig):
         self.AD = ad
         self.name = name
@@ -64,7 +61,6 @@ class PluginBase(abc.ABC):
         self.connect_event = asyncio.Event()
         self.ready_event = asyncio.Event()
         self.constraints = []
-        self.stopping = False
 
         # Performance Data
         self.bytes_sent = 0
@@ -235,14 +231,10 @@ class PluginManagement:
     """
     required_meta = ["latitude", "longitude", "elevation", "time_zone"]
     last_plugin_state: dict[str, datetime.datetime]
-    stopping: bool
-    """Flag for if PluginManagement should be shutting down
-    """
 
     def __init__(self, ad: "AppDaemon", config: Mapping[str, PluginConfig]):
         self.AD = ad
         self.config = config
-        self.stopping = False
 
         self.plugin_meta = {}
         self.plugin_objs = {}
@@ -337,7 +329,6 @@ class PluginManagement:
 
     def stop(self):
         self.logger.debug("stop() called for plugin_management")
-        self.stopping = True
         for plugin in self.plugin_objs:
             stop_func = self.plugin_objs[plugin]["object"].stop
 

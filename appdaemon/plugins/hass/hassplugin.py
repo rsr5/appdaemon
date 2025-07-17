@@ -97,16 +97,11 @@ class HassPlugin(PluginBase):
         self._silent_results = {}
         self.startup_conditions = []
 
-        # Internal state flags
-        self.stopping = False
-
         self.service_logger = self.diag.getChild("services")
         self.logger.info("HASS Plugin initialization complete")
 
     def stop(self):
         self.logger.debug("stop() called for %s", self.name)
-        self.stopping = True
-
         # This will stop waiting for message on the websocket
         self.AD.loop.create_task(self.ws.close())
 
@@ -369,7 +364,7 @@ class HassPlugin(PluginBase):
             await self.ws.send_json(request)
         # happens when the connection closes in the middle, which could be during shutdown
         except ConnectionResetError:
-            if self.stopping:
+            if self.AD.stopping:
                 self.logger.debug("Not connected to websocket, skipping JSON send.")
                 return
             else:
@@ -525,7 +520,7 @@ class HassPlugin(PluginBase):
 
         if delay := conditions.delay:
             self.logger.info(f'Adding a {delay:.0f}s delay to the {self.name} startup')
-            sleep = asyncio.sleep(delay)
+            sleep = self.AD.utility.sleep(delay, timeout_ok=True)
             task = self.AD.loop.create_task(sleep)
             tasks.append(task)
 
@@ -534,7 +529,7 @@ class HassPlugin(PluginBase):
             await asyncio.wait(tasks)
 
     async def get_updates(self):
-        while not self.stopping:
+        while not self.AD.stopping:
             try:
                 async for msg in self.websocket_msg_factory():
                     await self.match_ws_msg(msg)
@@ -545,7 +540,9 @@ class HassPlugin(PluginBase):
             # except HAEventsSubError:
             #     pass
             except Exception:
-                if not self.stopping:
+                if self.AD.stopping:
+                    self.logger.info("Disconnected from Home Assistant")
+                else:
                     self.logger.warning(
                         "Disconnected from Home Assistant, retrying in %s seconds",
                         self.config.retry_secs,
@@ -554,15 +551,12 @@ class HassPlugin(PluginBase):
                         # Will only run the first time through the loop after a failure
                         await self.AD.plugins.notify_plugin_stopped(self.name, self.namespace)
                     self.ready_event.clear()
-
-                    await asyncio.sleep(self.config.retry_secs)
+                    await self.AD.utility.sleep(self.config.retry_secs, timeout_ok=True)
 
             # always do this block, no matter what
             finally:
                 # remove callback from getting local events
                 await self.AD.callbacks.clear_callbacks(self.name)
-
-        self.logger.info("Disconnecting from Home Assistant")
 
     def _check_for_service(self, domain: str, service: str) -> bool:
         return service in self.AD.services.services.get(self.namespace, {}).get(domain, {})

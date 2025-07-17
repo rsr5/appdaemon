@@ -104,7 +104,7 @@ class AppDaemon(metaclass=Singleton):
     global_lock: RLock = RLock()
 
     # shut down flag
-    stopping: bool = False
+    stop_event: asyncio.Event
 
     def __init__(
         self,
@@ -120,6 +120,8 @@ class AppDaemon(metaclass=Singleton):
         self.booted = "booting"
         self.logger = logging.get_logger()
         self.logging.register_ad(self)  # needs to go last to reference the config object
+        self.stop_event = asyncio.Event()
+
 
         self.global_vars: Any = {}
         self.main_thread_id = threading.current_thread().ident
@@ -322,6 +324,19 @@ class AppDaemon(metaclass=Singleton):
         return self.config.starttime
 
     @property
+    def stopping(self) -> bool:
+        """Check if the AppDaemon instance is stopping."""
+        return self.stop_event.is_set()
+
+    @stopping.setter
+    def stopping(self, value: bool) -> None:
+        """Set the stopping state of the AppDaemon instance."""
+        if value:
+            self.stop_event.set()
+        else:
+            self.stop_event.clear()
+
+    @property
     def stop_function(self):
         return self.config.stop_function or self.stop
 
@@ -383,14 +398,9 @@ class AppDaemon(metaclass=Singleton):
         self.logger.info("Starting AppDaemon shutdown process")
 
         self.stopping = True
-        if self.admin_loop is not None:
-            self.admin_loop.stop()
+        self.sched.stop()
         if self.thread_async is not None:
             self.thread_async.stop()
-        if self.sched is not None:
-            self.sched.stop()
-        if self.utility is not None:
-            self.utility.stop()
         if self.plugins is not None:
             self.plugins.stop()
 
@@ -400,12 +410,13 @@ class AppDaemon(metaclass=Singleton):
             self.logger.warning("No running event loop found, cannot stop tasks gracefully")
             return
         else:
-            current_task = asyncio.current_task()
-            running_tasks = [task for task in asyncio.all_tasks() if task is not current_task]
-            if running_tasks:
-                self.logger.debug(f"Waiting for {len(running_tasks)} tasks to finish before shutting down")
-                asyncio.gather(*running_tasks, return_exceptions=True)
-                self.logger.debug(f"{len(running_tasks)} tasks stopped gracefully")
+            # This creates a task that will wait for all the ones that were running when stop() was called to finish
+            # before stopping the event loop.
+            running_tasks = asyncio.all_tasks()
+            self.logger.debug(f"Waiting for {len(running_tasks)} tasks to finish before shutting down")
+            all_coro = asyncio.wait(running_tasks, return_when=asyncio.ALL_COMPLETED, timeout=3)
+            gather_task = asyncio.create_task(all_coro, name="appdaemon_stop_tasks")
+            gather_task.add_done_callback(lambda _: self.loop.stop())
 
     def terminate(self):
         if self.state is not None:
@@ -460,4 +471,4 @@ class AppDaemon(metaclass=Singleton):
             self.logger.debug("Starting admin loop")
 
             self.admin_loop = AdminLoop(self)
-            self.loop.create_task(self.admin_loop.loop())
+            self.loop.create_task(self.admin_loop.loop(), name="admin loop")

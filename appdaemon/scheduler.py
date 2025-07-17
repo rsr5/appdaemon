@@ -74,17 +74,30 @@ class Scheduler:
             self.active = False
             self.logger.debug("Scheduler loop task completed, setting active to False")
 
+        def _shutdown_message(task: asyncio.Task[None]) -> None:
+            """
+            Callback to log a shutdown message when the loop task is done.
+            """
+            if self.AD.stopping:
+                if task.cancelled():
+                    self.logger.info("Scheduler loop task was cancelled")
+                elif (e := task.exception()) is not None:
+                    self.logger.info(f"Scheduler finished with exception: {e}")
+                else:
+                    self.logger.info("Scheduler finished gracefully")
+
         self.loop_task = self.AD.loop.create_task(self.loop(), name="scheduler loop")
         self.loop_task.add_done_callback(_set_inactive)
+        self.loop_task.add_done_callback(_shutdown_message)
+
+    def stop(self):
+        self.loop_task.cancel()
+        self.logger.debug("Scheduler loop task was cancelled")
 
     @property
     def realtime(self) -> bool:
         """Return whether the scheduler is running in real time."""
         return self.AD.real_time
-
-    def stop(self):
-        self.logger.debug("stop() called for scheduler")
-        self.stopping = True
 
     async def set_start_time(self, starttime: datetime | None = None):
         self.last_fired = datetime.now(timezone.utc).astimezone(self.AD.tz)
@@ -513,7 +526,7 @@ class Scheduler:
         idle_time = 1
         delay = 0
         old_dst_offset = (await self.get_now()).astimezone(self.AD.tz).dst()
-        while not self.stopping:
+        while not self.AD.stopping:
             try:
                 if self.endtime is not None and self.now >= self.endtime:
                     self.logger.info("End time reached, exiting")
@@ -647,6 +660,7 @@ class Scheduler:
                 self.logger.warning("-" * 60)
                 # Prevent spamming of the logs
                 await self.sleep(1)
+        self.logger.debug("End of scheduler loop()")
 
     async def sleep(self, delay: float) -> bool:
         try:

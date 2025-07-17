@@ -1469,7 +1469,7 @@ class AppManagement:
 
                 if mode is False:  # it was off
                     self.AD.production_mode = True
-                    await asyncio.sleep(0.5)
+                    await self.AD.utility.sleep(0.5, timeout_ok=True)
 
                 match service:
                     case "enable":
@@ -1484,7 +1484,7 @@ class AppManagement:
                         result = await self.remove_app(app, **kwargs)
 
                 if mode is False:  # meaning it was not in production mode
-                    await asyncio.sleep(1)
+                    await self.AD.utility.sleep(1, timeout_ok=True)
                     self.AD.production_mode = mode
 
                 return result

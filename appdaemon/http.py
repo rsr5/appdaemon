@@ -116,8 +116,6 @@ class HTTP:
     """Reference to the AppDaemon container object
     """
     name: str = "_http"
-
-    stopping: bool
     executor: concurrent.futures.ThreadPoolExecutor
 
     start_event: asyncio.Event
@@ -164,8 +162,6 @@ class HTTP:
         self.static_dirs = {}
 
         self._process_http(self.http)
-
-        self.stopping = False
 
         self.app_endpoints = {}
         self.app_routes = {}
@@ -430,10 +426,6 @@ class HTTP:
         for header, value in self.http["headers"].items():
             response.headers[header] = value
 
-    def stop(self):
-        self.logger.debug("Set stop event for HTTP component")
-        self.stopping = True
-
     def _process_arg(self, arg, kwargs):
         if kwargs:
             if arg in kwargs:
@@ -502,7 +494,7 @@ class HTTP:
     async def update_rss(self):
         # Grab RSS Feeds
         if self.rss_feeds is not None and self.rss_update is not None:
-            while not self.stopping:
+            while not self.AD.stopping:
                 try:
                     if self.rss_last_update is None or (self.rss_last_update + self.rss_update) <= time.time():
                         self.rss_last_update = time.time()
@@ -521,7 +513,7 @@ class HTTP:
                                 # RSS Feeds always live in the admin namespace
                                 await self.AD.state.set_state("rss", "admin", feed_data["target"], state=new_state)
 
-                    await asyncio.sleep(1)
+                    await self.AD.utility.sleep(1, timeout_ok=True)
                 except Exception:
                     self.logger.warning("-" * 60)
                     self.logger.warning("Unexpected error in update_rss()")
