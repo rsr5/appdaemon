@@ -23,14 +23,13 @@ from logging import Logger
 from pathlib import Path
 from time import perf_counter
 
-from pydantic import ValidationError
 
 import appdaemon.appdaemon as ad
 import appdaemon.utils as utils
 from appdaemon import exceptions as ade
 from appdaemon.app_management import UpdateMode
 from appdaemon.appdaemon import AppDaemon
-from appdaemon.exceptions import NoADConfig, StartupAbortedException
+from appdaemon.exceptions import NoADConfig
 from appdaemon.http import HTTP
 from appdaemon.logging import Logging
 
@@ -196,10 +195,11 @@ def resolve_config_file(args: argparse.Namespace) -> tuple[Path, Path]:
     return config_file, config_dir
 
 
-def parse_config(stop_function: Callable) -> tuple[MainConfig, argparse.Namespace]:
+def parse_config(args: argparse.Namespace, stop_function: Callable) -> MainConfig:
     """Parse configuration file and return MainConfig model.
 
     Args:
+        args: Parsed command line arguments
         stop_function: Function to call for stopping the application
 
     Returns:
@@ -208,14 +208,6 @@ def parse_config(stop_function: Callable) -> tuple[MainConfig, argparse.Namespac
     Raises:
         SystemExit: If configuration cannot be loaded or parsed
     """
-    # Get command line args
-    args = parse_arguments()
-
-    if args.debug is not None:
-        CLI_LOG_CFG = PRE_LOGGING.copy()
-        CLI_LOG_CFG["root"]["level"] = args.debug
-        logging.config.dictConfig(CLI_LOG_CFG)
-        logger.debug("Configured logging level from command line argument")
 
     try:
         config_file, config_dir = resolve_config_file(args)
@@ -223,70 +215,58 @@ def parse_config(stop_function: Callable) -> tuple[MainConfig, argparse.Namespac
         err_logger.error(f"Error accessing configuration: {e}")
         sys.exit(1)
 
-    try:
-        config = utils.read_config_file(config_file)
-        assert isinstance(config, dict), "Configuration file must be a dictionary"
+    config = utils.read_config_file(config_file)
+    assert isinstance(config, dict), "Configuration file must be a dictionary"
 
-        # Only process sections that actually have None values
-        for key, value in config.items():
-            if value is None:
-                config[key] = {}
+    # Only process sections that actually have None values
+    for key, value in config.items():
+        if value is None:
+            config[key] = {}
 
-        ad_kwargs = config["appdaemon"]
-        assert isinstance(ad_kwargs, dict), "AppDaemon configuration must be a dictionary"
+    ad_kwargs = config["appdaemon"]
+    assert isinstance(ad_kwargs, dict), "AppDaemon configuration must be a dictionary"
 
-        # Batch assign required parameters
-        ad_kwargs.update({
-            "config_dir": config_dir,
-            "config_file": config_file,
-            "write_toml": args.write_toml,
-            "stop_function": stop_function,
-        })
+    # Batch assign required parameters
+    ad_kwargs.update({
+        "config_dir": config_dir,
+        "config_file": config_file,
+        "write_toml": args.write_toml,
+        "stop_function": stop_function,
+    })
 
-        # Conditionally assign time-related parameters
-        for attr in ("timewarp", "starttime", "endtime"):
-            if (value := getattr(args, attr)):
-                ad_kwargs[attr] = value
+    # Conditionally assign time-related parameters
+    for attr in ("timewarp", "starttime", "endtime"):
+        if (value := getattr(args, attr)):
+            ad_kwargs[attr] = value
 
-        # Set log level with fallback
-        ad_kwargs["loglevel"] = args.debug or ad_kwargs.get("loglevel", "INFO")
+    # Set log level with fallback
+    ad_kwargs["loglevel"] = args.debug or ad_kwargs.get("loglevel", "INFO")
 
-        # Handle module debug efficiently
-        module_debug_cli = (
-            {arg[0]: arg[1] for arg in args.moduledebug}
-            if args.moduledebug else {}
-        )
+    # Handle module debug efficiently
+    module_debug_cli = (
+        {arg[0]: arg[1] for arg in args.moduledebug}
+        if args.moduledebug else {}
+    )
 
-        if isinstance(ad_kwargs.get("module_debug"), dict):
-            ad_kwargs["module_debug"] |= module_debug_cli
-        else:
-            ad_kwargs["module_debug"] = module_debug_cli
+    if isinstance(ad_kwargs.get("module_debug"), dict):
+        ad_kwargs["module_debug"] |= module_debug_cli
+    else:
+        ad_kwargs["module_debug"] = module_debug_cli
 
-        if isinstance((hadashboard := config.get("hadashboard")), dict):
-            hadashboard["config_dir"] = config_dir
-            hadashboard["config_file"] = config_file
-            hadashboard["dashboard"] = True
-            hadashboard["profile_dashboard"] = args.profiledash
+    if isinstance((hadashboard := config.get("hadashboard")), dict):
+        hadashboard["config_dir"] = config_dir
+        hadashboard["config_file"] = config_file
+        hadashboard["dashboard"] = True
+        hadashboard["profile_dashboard"] = args.profiledash
 
-        model = MainConfig.model_validate(config)
+    model = MainConfig.model_validate(config)
 
-        if ad_kwargs["loglevel"] == "DEBUG":
-            # need to dump as python types or serializing the timezone object will fail
-            model_json = model.model_dump(mode="python", by_alias=True)
-            logger.debug(json.dumps(model_json, indent=4, default=str, sort_keys=True))
+    if ad_kwargs["loglevel"] == "DEBUG":
+        # need to dump as python types or serializing the timezone object will fail
+        model_json = model.model_dump(mode="python", by_alias=True)
+        logger.debug(json.dumps(model_json, indent=4, default=str, sort_keys=True))
 
-        return model, args
-    except ValidationError as e:
-        err_logger.error(f"Configuration error in: {config_file}")
-        err_logger.error(e)
-        sys.exit(1)
-    except ade.ConfigReadFailure as e:
-        ade.user_exception_block(err_logger, e, config_dir, "Reading AppDaemon configuration")
-        sys.exit(1)
-    except Exception as e:
-        err_logger.error(f"Unexpected error loading config file: {config_file}")
-        err_logger.error(e)
-        sys.exit(1)
+    return model
 
 
 class ADMain:
@@ -310,36 +290,44 @@ class ADMain:
     stop_time: float = 0.0
     """Stores the value of perf_counter() when self.stop is first called."""
 
-    def __init__(self):
+    def __init__(self, args: argparse.Namespace):
         """Constructor."""
+        self.args = args
         self.http_object = None
         self._cleanup_stack = ExitStack()
 
+        try:
+            self.model = parse_config(self.args, self.stop)
+            self.setup_logging()
+            utils.deprecation_warnings(self.model.appdaemon, self.logger)
+        except Exception as e:
+            # err_logger.exception(e)
+            ade.user_exception_block(logger, e, None, header="Failed to configure AppDaemon")
+            sys.exit(1)
+            # raise ade.StartupAbortedException() from e
+
     def __enter__(self):
-        self.model, self.args = parse_config(self.stop)
-        self._cleanup_stack.__enter__()
+        try:
+            self._cleanup_stack.enter_context(
+                ade.exception_context(self.logger, self.model.appdaemon.app_dir, header="ADMain")
+            )
 
-        self.setup_logging()
-
-        if self.args.pidfile is not None and pid is not None:
-            self.logger.info("Using pidfile: %s", self.args.pidfile)
-            pidfile_path = Path(self.args.pidfile)
-            pid_file = pid.PidFile(pidfile_path.name, pidfile_path.parent)
-            try:
+            if self.args.pidfile is not None and pid is not None:
+                pidfile_path = Path(self.args.pidfile).resolve()
+                self.logger.info("Using pidfile: %s", pidfile_path)
+                pid_file = pid.PidFile(pidfile_path.name, pidfile_path.parent)
                 self.enter_context(pid_file)
-            except pid.PidFileError:
-                self.logger.error("Unable to acquire pidfile - terminating")
-                sys.exit(1)
 
-        return self
+            self.enter_context(self.loop_context())
+            self.enter_context(self.signal_handlers(self.loop))
+            return self
+        except Exception as e:
+            ade.user_exception_block(self.logger, e, self.model.appdaemon.app_dir, header="ADMain __enter__")
+            sys.exit(1)
+            # raise ade.StartupAbortedException() from e
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        # Then handle any additional cleanup via the stack
         self._cleanup_stack.close()
-        del self.model
-        del self.args
-        self.loop.close()
-        self.logger.debug("Closed async event loop")
 
     def add_cleanup(self, cleanup_func, *args, **kwargs):
         """Add a cleanup function to be called on exit."""
@@ -366,16 +354,29 @@ class ADMain:
                 self.AD.thread_async.call_async_no_wait(self.AD.sched.dump_sun)
             case signal.SIGHUP:
                 self.AD.thread_async.call_async_no_wait(self.AD.app_management.check_app_updates, mode=UpdateMode.TERMINATE)
-            case signal.SIGINT:
-                self.logger.info("Keyboard interrupt")
-                self.stop()
-            case signal.SIGTERM:
-                self.logger.info("SIGTERM Received")
+            case (signal.SIGINT | signal.SIGTERM) as sig:
+                self.logger.info(f"Received signal: {signal.Signals(sig).name}")
                 self.stop()
             # case signal.SIGWINCH:
             #     ... # disregard window changes
             # case _:
             #     self.logger.error(f'Unhandled signal: {signal.Signals(signum).name}')
+
+    @contextmanager
+    def loop_context(self):
+        # uvloop needs to be installed outside of self.run_context
+        if self.model.appdaemon.uvloop and uvloop is not None:
+            uvloop.install()
+            self.logger.info("Enabled uvloop")
+
+        try:
+            self.loop = asyncio.new_event_loop()
+            self.logger.debug("Created new async event loop")
+            yield self.loop
+        finally:
+            self.loop.close()
+            del self.loop
+            self.logger.debug("Closed async event loop")
 
     @contextmanager
     def signal_handlers(self, loop: asyncio.AbstractEventLoop):
@@ -402,39 +403,25 @@ class ADMain:
     def stop(self):
         """Called by the signal handler to shut AD down."""
         self.stop_time = perf_counter()
-        self.AD.stop()
+        self.loop.create_task(self.AD.stop())
 
-    def run(self):
+    def run(self) -> None:
         """Start AppDaemon up after initial argument parsing."""
-        assert getattr(self, 'model', None) is not None, "Model must be initialized before running"
-
-        # uvloop needs to be installed outside of self.run_context
-        if self.model.appdaemon.uvloop and uvloop is not None:
-            self.logger.info("Running AD using uvloop")
-            uvloop.install()
-
-        # async event loop is created here so that it can be referenced later
-        self.loop = asyncio.new_event_loop()
-
-        # self.run_context contains the logic for handling exceptions and cleanup
-        with self.run_context(self.loop):
-            self.logger.debug("Start Main Loop")
-            self.AD.start()
-            self.loop.run_forever()
-
-            # pending = asyncio.all_tasks(self.loop)
-            # self.loop.run_until_complete(asyncio.gather(*pending))
+        self.enter_context(self.startup_text())
+        self.enter_context(self.run_context(self.loop))
+        self.AD.start()
+        self.logger.debug("Running async event loop forever")
+        self.loop.run_forever()
+        pass
 
     @contextmanager
     def run_context(self, loop: asyncio.AbstractEventLoop):
         """Context manager for the main run logic with exception handling."""
         try:
             # Initialize AppDaemon
-            self.AD = ad.AppDaemon(self.logging, loop, self._cleanup_stack, self.model.appdaemon)
-            loop.set_exception_handler(functools.partial(ade.exception_handler, self.AD))
-
-            # Register signal handlers with cleanup stack
-            self.enter_context(self.signal_handlers(loop))
+            self.AD = ad.AppDaemon(self.logging, loop, self.model.appdaemon, self._cleanup_stack)
+            exception_handler = functools.partial(ade.exception_handler, self.AD)
+            self.loop.set_exception_handler(exception_handler)
 
             # Initialize Dashboard/API/admin
             http_components = (
@@ -456,69 +443,59 @@ class ADMain:
                     self.logger.info("HTTP is disabled")
 
             yield
-            self.logger.debug('Exited self.run_context')
-
-            # Now we are shutting down - perform any necessary cleanup
-            self.AD.terminate()
-            self.logger.info("AppDaemon is stopped.")
-        except ValidationError as e:
-            logging.getLogger().exception(e)
-        except StartupAbortedException as e:
-            # We got an unrecoverable error during startup so print it out and quit
-            self.logger.error(f"AppDaemon terminated with errors: {e}")
-        except ade.AppDaemonException as e:
-            ade.user_exception_block(self.logger, e, self.AD.app_dir)
         except Exception:
             self.logger.warning("-" * 60)
             self.logger.warning("Unexpected error during run()")
             self.logger.warning("-" * 60, exc_info=True)
             self.logger.warning("-" * 60)
-
-            self.logger.debug("End Loop")
-            self.logger.info("AppDaemon Exited")
+        finally:
+            self.logger.debug('Exiting self.run_context')
+            self.loop.set_exception_handler(None)
+            self.logger.info("AppDaemon is stopped.")
 
     def setup_logging(self) -> None:
         """Set up logging configuration and timezone.
         """
         log_cfg = self.model.logs.model_dump(mode="python", by_alias=True, exclude_unset=True)
         self.logging = Logging(log_cfg, self.args.debug)
-        self.logger = self.logging.get_logger()
+        self.logger = self.logging.get_logger().getChild("_startup")
 
         if self.model.appdaemon.time_zone is not None:
             self.logging.set_tz(self.model.appdaemon.time_zone)
 
-    def main(self):
-        # Startup message
-        self.logger.info("-" * 60)
-        self.logger.info("AppDaemon Version %s starting", utils.__version__)
+    @contextmanager
+    def startup_text(self):
+        try:
+            # Startup message
+            self.logger.info("-" * 60)
+            self.logger.info("AppDaemon Version %s starting", utils.__version__)
 
-        if utils.__version_comments__ is not None and utils.__version_comments__ != "":
-            self.logger.info("Additional version info: %s", utils.__version_comments__)
+            if utils.__version_comments__ is not None and utils.__version_comments__ != "":
+                self.logger.info("Additional version info: %s", utils.__version_comments__)
 
-        self.logger.info("-" * 60)
-        self.logger.info(
-            "Python version is %s.%s.%s",
-            sys.version_info[0],
-            sys.version_info[1],
-            sys.version_info[2],
-        )
-        self.logger.info("Configuration read from: %s", self.model.appdaemon.config_file)
+            self.logger.info("-" * 60)
+            self.logger.info("Python version is %s.%s.%s", *sys.version_info[:3])
+            self.logger.info("Configuration read from: %s", self.model.appdaemon.config_file)
 
-        utils.deprecation_warnings(self.model.appdaemon, self.logger)
-
-        self.logging.dump_log_config()
-        self.logger.debug("AppDaemon Section: %s", self.model.appdaemon)
-        self.logger.debug("HADashboard Section: %s", self.model.hadashboard)
-
-        self.run()
+            # self.logging.dump_log_config()
+            yield
+        finally:
+            stop_duration = perf_counter() - self.stop_time
+            self.logger.info("AppDaemon main() stopped gracefully in %s", utils.format_timedelta(stop_duration))
 
 
 def main():
-    with ADMain() as admain:
-        admain.main()
+    args = parse_arguments()
 
-    stop_duration = perf_counter() - admain.stop_time
-    admain.logger.info("AppDaemon main() stopped gracefully in %s", utils.format_timedelta(stop_duration))
+    if args.debug is not None:
+        CLI_LOG_CFG = PRE_LOGGING.copy()
+        CLI_LOG_CFG["root"]["level"] = args.debug
+        logging.config.dictConfig(CLI_LOG_CFG)
+        logger.debug("Configured logging level from command line argument")
+
+    with ADMain(args) as admain:
+        # raise ade.StartupAbortedException()
+        admain.run()
 
 
 if __name__ == "__main__":

@@ -309,7 +309,7 @@ class HTTP:
         self.start_event.clear()
         if self.runner is not None:
             self.loop.run_until_complete(self.stop_server())
-            self.logger.debug("Cleaned up HTTP TCP site and runner")
+            # self.loop.create_task(self.stop_server())
 
     def _process_dashboard(self, dashboard):
         self.logger.info("Starting Dashboards")
@@ -416,11 +416,13 @@ class HTTP:
             raise ade.HTTPFailure(f"{self.host}:{self.port}") from exc
 
     async def stop_server(self) -> None:
-        self.logger.debug("Stopping webserver gracefully")
         if self.site is not None:
+            self.logger.debug("Stopping HTTP site")
             await self.site.stop()
         if self.runner is not None:
+            self.logger.debug("Cleaning up AppRunner")
             await self.runner.cleanup()
+        self.logger.info("Stopped HTTP server gracefully")
 
     async def add_response_headers(self, request, response):
         for header, value in self.http["headers"].items():

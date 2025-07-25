@@ -3,13 +3,13 @@ import os
 import threading
 from asyncio import AbstractEventLoop
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import ExitStack, asynccontextmanager
+from contextlib import ExitStack
 from pathlib import Path
 from threading import RLock
-from typing import TYPE_CHECKING, Any, AsyncGenerator
+from typing import TYPE_CHECKING, Any
 
 from appdaemon.admin_loop import AdminLoop
-from appdaemon.app_management import AppManagement, UpdateMode
+from appdaemon.app_management import AppManagement
 from appdaemon.callbacks import Callbacks
 from appdaemon.events import Events
 from appdaemon.futures import Futures
@@ -23,14 +23,14 @@ from appdaemon.thread_async import ThreadAsync
 from appdaemon.threads import Threading
 from appdaemon.utility_loop import Utility
 
-from .utils import Singleton
+from . import utils
 
 if TYPE_CHECKING:
     from appdaemon.http import HTTP
     from appdaemon.logging import Logging
 
 
-class AppDaemon(metaclass=Singleton):
+class AppDaemon(metaclass=utils.Singleton):
     """Top-level container for the subsystem objects. This gets passed to the subsystem objects and stored in them as
     the ``self.AD`` attribute.
 
@@ -110,12 +110,12 @@ class AppDaemon(metaclass=Singleton):
         self,
         logging: "Logging",
         loop: AbstractEventLoop,
-        exit_stack: ExitStack,
         ad_config_model: AppDaemonConfig,
+        exit_stack: ExitStack | None = None,
     ) -> None:
         self.logging = logging
         self.loop = loop
-        self.exit_stack = exit_stack
+        self.exit_stack = exit_stack if exit_stack is not None else ExitStack()
         self.config = ad_config_model
         self.booted = "booting"
         self.logger = logging.get_logger()
@@ -333,6 +333,7 @@ class AppDaemon(metaclass=Singleton):
         """Set the stopping state of the AppDaemon instance."""
         if value:
             self.stop_event.set()
+            self.logger.debug("Set stop event")
         else:
             self.stop_event.clear()
 
@@ -382,80 +383,49 @@ class AppDaemon(metaclass=Singleton):
 
     def start(self) -> None:
         self.thread_async.start()
+        self.sched.start()
         self.utility.start()
 
-    def stop(self) -> None:
-        """Called by the signal handler to shut AD down.
+        if self.apps_enabled:
+            self.app_management.start()
 
-        Also stops
+    async def stop(self) -> None:
+        """Called by the signal handler to shut down AppDaemon.
 
-        - :class:`~.admin_loop.AdminLoop`
+        Also stops (in order):
+
+        - :class:`~.app_management.AppManagement`
         - :class:`~.thread_async.ThreadAsync`
-        - :class:`~.scheduler.Scheduler`
-        - :class:`~.utility_loop.Utility`
         - :class:`~.plugin_management.Plugins`
+        - :class:`~.scheduler.Scheduler`
+        - :class:`~.state.State`
         """
-        self.logger.info("Starting AppDaemon shutdown process")
-
+        self.logger.info("Shutting down AppDaemon")
         self.stopping = True
-        self.sched.stop()
+
+        # Subsystems are able to create tasks during their stop methods
+        if self.apps_enabled:
+            try:
+                await asyncio.wait_for(self.app_management.stop(), timeout=3)
+            except asyncio.TimeoutError:
+                self.logger.warning("AppManagement stop timed out, continuing shutdown")
         if self.thread_async is not None:
             self.thread_async.stop()
         if self.plugins is not None:
-            self.plugins.stop()
+            try:
+                await asyncio.wait_for(self.plugins.stop(), timeout=1)
+            except asyncio.TimeoutError:
+                self.logger.warning("Timed out stopping plugins, continuing shutdown")
+        self.sched.stop()
+        self.state.stop()
 
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            self.logger.warning("No running event loop found, cannot stop tasks gracefully")
-            return
-        else:
-            # This creates a task that will wait for all the ones that were running when stop() was called to finish
-            # before stopping the event loop.
-            running_tasks = asyncio.all_tasks()
-            self.logger.debug(f"Waiting for {len(running_tasks)} tasks to finish before shutting down")
-            all_coro = asyncio.wait(running_tasks, return_when=asyncio.ALL_COMPLETED, timeout=3)
-            gather_task = asyncio.create_task(all_coro, name="appdaemon_stop_tasks")
-            gather_task.add_done_callback(lambda _: self.loop.stop())
-
-    def terminate(self):
-        if self.state is not None:
-            self.state.terminate()
-
-    @asynccontextmanager
-    async def run_for_time(self, app_name: str, duration: float) -> AsyncGenerator[None, None]:
-        """Run the AppDaemon instance for a specified duration.
-
-        Args:
-            duration: The duration in seconds to run the AppDaemon instance
-
-        Yields:
-            None after the instance has been running for the specified duration
-        """
-        try:
-            async with self.app_management.app_state_context(app_name, disable=False):
-                await self.app_management.check_app_updates(mode=UpdateMode.TESTING)
-                await self.sched.set_start_time()
-                self.start()
-                self.logger.debug(f"Running AppDaemon for {duration} seconds")
-                await asyncio.sleep(duration)
-                yield
-        finally:
-            self.logger.debug("Stopping AppDaemon")
-            if stopping_tasks := self.stop():
-                try:
-                    await asyncio.wait_for(stopping_tasks, timeout=2)
-                except TimeoutError:
-                    self.logger.warning("AppDaemon did not stop in time")
-            self._log_running_tasks()
-            self.logger.debug("AppDaemon stopped")
-
-    def _log_running_tasks(self):
-        """Log information about currently running asyncio tasks."""
-        tasks = asyncio.all_tasks()
-        self.logger.debug(f"Running tasks: {len(tasks)}")
-        for task in tasks:
-            self.logger.debug(f"Name: {task.get_name():<20}, Done: {task.done()}, Cancelled: {task.cancelled()}, Result: {task.result() if task.done() else 'N/A'}")
+        # This creates a task that will wait for all the ones that were running when stop() was called to finish
+        # before stopping the event loop. This allows subsystems to create tasks during their own stop methods
+        running_tasks = asyncio.all_tasks()
+        self.logger.debug(f"Waiting for {len(running_tasks)} tasks to finish before shutting down")
+        all_coro = asyncio.wait(running_tasks, return_when=asyncio.ALL_COMPLETED, timeout=3)
+        gather_task = asyncio.create_task(all_coro, name="appdaemon_stop_tasks")
+        gather_task.add_done_callback(lambda _: self.loop.stop())
 
     #
     # Utilities

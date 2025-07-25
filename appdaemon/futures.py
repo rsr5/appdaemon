@@ -1,6 +1,7 @@
 import asyncio
 from collections import defaultdict
 from typing import TYPE_CHECKING
+from concurrent.futures import Future
 
 if TYPE_CHECKING:
     from appdaemon.appdaemon import AppDaemon
@@ -20,7 +21,7 @@ class Futures:
         self.logger = self.AD.logging.get_child("_futures")
         self.futures = defaultdict(list)
 
-    def add_future(self, app_name: str, future: asyncio.Future):
+    def add_future(self, app_name: str, future: asyncio.Future | Future):
         """Add a future to the registry and a callback that removes itself from the registry after it finishes."""
         self.futures[app_name].append(future)
         def safe_remove(f):
@@ -29,10 +30,16 @@ class Futures:
             except ValueError:
                 pass
         future.add_done_callback(safe_remove)
-        if isinstance(future, asyncio.Task):
-            self.logger.debug(f"Registered a task for {app_name}: {future.get_name()}")
-        else:
-            self.logger.debug(f"Registered a future for {app_name}: {future}")
+
+        match future:
+            case asyncio.Task() as task:
+                self.logger.debug(f"Registered a task for {app_name}: {task.get_name()}")
+            # case asyncio.Future() as fut if (name := fut._callbacks[-1][0].__name__) != "safe_remove":
+            case (asyncio.Future() | Future()) as fut:
+                name = fut._callbacks[-1][0].__name__
+                self.logger.debug(f"Registered a future for {app_name}: {name}")
+            case _:
+                self.logger.debug(f"Registered a future for {app_name}: {future}")
 
     def cancel_future(self, future: asyncio.Future):
         if not future.done() and not future.cancelled():

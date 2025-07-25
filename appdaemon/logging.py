@@ -300,7 +300,7 @@ class Logging(metaclass=utils.Singleton):
                     )
                 )
                 args["logger"] = logger
-                logger.setLevel(args.get("level", "INFO"))
+                logger.setLevel(args.get("level", log_level if log_level is not None else "INFO"))
                 logger.propagate = False
                 if args["filename"] == "STDOUT":
                     handler = logging.StreamHandler(stream=sys.stdout)

@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any, Literal, TypeVar
 
 from pydantic import ValidationError
 
+
 from appdaemon.dependency import DependencyResolutionFail, get_full_module_name
 from appdaemon.dependency_manager import DependencyManager
 from appdaemon.models.config import AllAppConfig, AppConfig, GlobalModule
@@ -33,6 +34,8 @@ from .models.internal.app_management import LoadingActions, ManagedObject, Updat
 
 if TYPE_CHECKING:
     from .appdaemon import AppDaemon
+    from .adbase import ADBase
+    from .adapi import ADAPI
     from .plugin_management import PluginBase
 
 T = TypeVar("T")
@@ -160,6 +163,27 @@ class AppManagement:
     def valid_apps(self) -> set[str]:
         return self.running_apps | self.loaded_globals
 
+    def start(self) -> None:
+        self.logger.debug("Starting the app management subsystem")
+        if self.AD.apps_enabled:
+            task = self.AD.loop.create_task(
+                self.check_app_updates(mode=UpdateMode.INIT),
+                name="check_app_updates",
+            )
+            task.add_done_callback(
+                lambda _: self.AD.loop.create_task(
+                    self.AD.events.process_event("global", {"event_type": "appd_started", "data": {}}),
+                    name="appd_started_event"
+                )
+            )
+
+    async def stop(self) -> None:
+        if self.AD.apps_enabled:
+            self.logger.debug("Stopping the app management subsystem")
+            await self.check_app_updates(mode=UpdateMode.TERMINATE)
+            await self.AD.events.process_event("global", {"event_type": "appd_stopped", "data": {}})
+            self.logger.debug("All apps stopped")
+
     async def set_state(self, name: str, **kwargs):
         # not a fully qualified entity name
         if not name.startswith("sensor."):
@@ -227,10 +251,6 @@ class AppManagement:
         await self.set_state(self.active_apps_sensor, state=len(self.active_apps))
         await self.set_state(self.inactive_apps_sensor, state=len(self.inactive_apps))
 
-    async def terminate(self):
-        self.logger.debug("terminate() called for app_management")
-        await self.check_app_updates(mode=UpdateMode.TERMINATE)
-
     async def dump_objects(self):
         self.diag.info("--------------------------------------------------")
         self.diag.info("Objects")
@@ -292,24 +312,23 @@ class AppManagement:
 
     async def terminate_app(self, app_name: str, delete: bool = True) -> bool:
         try:
-            if (obj := self.objects.get(app_name)) and (term := getattr(obj.object, "terminate", None)):
+            if (obj := self.objects.get(app_name)) and (terminate := getattr(obj.object, "terminate", None)):
                 self.logger.info("Calling terminate() for '%s'", app_name)
-                if asyncio.iscoroutinefunction(term):
-                    await term()
+                if asyncio.iscoroutinefunction(terminate):
+                    await terminate()
                 else:
-                    await utils.run_in_executor(self, term)
+                    await utils.run_in_executor(self, terminate)
             return True
 
         except TypeError:
-            self.AD.threading.report_callback_sig(app_name, "terminate", term, {})
+            self.AD.threading.report_callback_sig(app_name, "terminate", terminate, {})
             return False
 
         except Exception:
             error_logger = logging.getLogger(f"Error.{app_name}")
             error_logger.warning("-" * 60)
             error_logger.warning("Unexpected error running terminate() for %s", app_name)
-            error_logger.warning("-" * 60)
-            error_logger.warning(traceback.format_exc())
+            error_logger.warning("-" * 60 + '\n' + traceback.format_exc())
             error_logger.warning("-" * 60)
             if self.AD.logging.separate_error_log() is True:
                 self.logger.warning(
@@ -352,17 +371,19 @@ class AppManagement:
         This does not work on global module apps because they only exist as imported modules.
 
         Args:
-            app (str): Name of the app to start
+            app_name (str): Name of the app to start
         """
         match self.app_config.root.get(app_name):
             case AppConfig() as app_cfg:
-                if app_cfg.disable:
-                    self.logger.debug(f"Skip starting disabled app: '{app_name}'")
-                    return
+                pass
+                # Don't respect the disable here to enable disabled apps to be manually started
+                # if app_cfg.disable:
+                #     self.logger.debug(f"Skip starting disabled app: '{app_name}'")
+                #     return
             case GlobalModule():
                 self.logger.warning("Global modules cannot be started")
                 return
-            case None:
+            case _:
                 self.logger.error("App %s not found in app_config", app_name)
                 return
 
@@ -458,7 +479,7 @@ class AppManagement:
             logger: Logger = obj.object.logger
             return logging._levelToName[logger.getEffectiveLevel()]
 
-    async def create_app_object(self, app_name: str) -> None:
+    async def create_app_object(self, app_name: str) -> Any | None:
         """Instantiates an app by name and stores it in ``self.objects``.
 
         This does not work on global module apps.
@@ -469,7 +490,6 @@ class AppManagement:
         Raises:
             PinOutofRange: Caused by passing in an invalid value for pin_thread
             MissingAppClass: When there's a problem getting the class definition from the loaded module
-            AppClassSignatureError: When the class has the wrong number of inputs on its __init__ method
             AppInstantiationError: When there's another, unknown error creating the class from its definition
         """
 
@@ -501,7 +521,7 @@ class AppManagement:
                 mod_obj = await utils.run_in_executor(self, importlib.import_module, module_name)
 
                 try:
-                    app_class = getattr(mod_obj, class_name)
+                    app_class: type[ADBase | ADAPI] = getattr(mod_obj, class_name)
                 except AttributeError:
                     path = mod_obj.__file__ or mod_obj.__path__._path[0]
                     raise ade.MissingAppClass(app_name, mod_obj.__name__, Path(path).relative_to(self.AD.app_dir.parent), class_name)
@@ -522,12 +542,13 @@ class AppManagement:
                 # load the module path into app entity
                 module_path = await utils.run_in_executor(self, os.path.abspath, mod_obj.__file__)
                 await self.set_state(app_name, state="created", module_path=module_path)
+                return new_obj
             except Exception as exc:
                 await self.set_state(app_name, state="compile_error")
                 await self.increase_inactive_apps(app_name)
                 raise ade.AppInstantiationError(app_name) from exc
 
-        await safe_create(self)
+        return await safe_create(self)
 
     def get_managed_app_names(self, include_globals: bool = False, running: bool | None = None) -> set[str]:
         apps = set(
@@ -824,6 +845,7 @@ class AppManagement:
                     if not hasattr(self, "dependency_manager"):
                         # The dependency manager could have already been initialized in a test environment
                         await self._init_dep_manager()
+                    return
                 case UpdateMode.RELOAD_APPS:
                     all_apps = self.get_managed_app_names(include_globals=False, running=True)
                     modules = self.dependency_manager.modules_from_apps(all_apps)
@@ -1073,57 +1095,56 @@ class AppManagement:
         for app_name in stop_order:
             if not await self.stop_app(app_name):
                 failed_to_stop.add(app_name)
+            else:
+                self.logger.info("Stopped app '%s'", app_name)
 
         if failed_to_stop:
             self.logger.debug("Removing %s apps because they failed to stop cleanly", len(failed_to_stop))
             update_actions.apps.init -= failed_to_stop
             update_actions.apps.reload -= failed_to_stop
 
-    async def _create_and_start_apps(self, update_actions: UpdateActions):
+    async def _create_and_start_apps(self, update_actions: UpdateActions) -> None:
+        """Creates and starts apps that are in the init set of the update actions."""
         if failed := update_actions.apps.failed:
             self.logger.warning("Failed to start apps: %s", failed)
 
-        start_order = update_actions.apps.start_sort(self.dependency_manager)
+        start_order = update_actions.apps.start_sort(self.dependency_manager, self.logger)
         if start_order:
             self.logger.info("Starting apps: %s", update_actions.apps.init_set)
             self.logger.debug("App start order: %s", start_order)
 
             for app_name in start_order:
                 match self.app_config.root.get(app_name):
-                    case None:
-                        self.logger.warning(f"App '{app_name}' not found in app config")
-                        continue
+                    case AppConfig() as cfg if not cfg.disable:
+                        if await self.create_app_object(app_name) is None:
+                            update_actions.apps.failed.add(app_name)
                     case GlobalModule():
                         # Global modules are not started, they are just imported
                         self.logger.debug(f"Skipping global module '{app_name}'")
-                        continue
-                    case AppConfig() as cfg if not cfg.disable:
-                        try:
-                            await self.create_app_object(app_name)
-                        except ade.AppInstantiationError:
-                            # App instantiation failed, add to failed set
-                            update_actions.apps.failed.add(app_name)
+                    case None:
+                        self.logger.warning(f"App '{app_name}' not found in app config")
 
             # Need to have already created the ManagedObjects for the threads to get assigned
             await self.AD.threading.calculate_pin_threads()
 
-            # Need to recalculate start order in case creating the app object fails
-            start_order = update_actions.apps.start_sort(self.dependency_manager, self.logger)
+        # Need to recalculate start order to account for any failed object creations
+        start_order = update_actions.apps.start_sort(self.dependency_manager, self.logger)
+        if start_order:
             for app_name in start_order:
-                if isinstance((cfg := self.app_config.root[app_name]), AppConfig):
+                match self.app_config.root.get(app_name):
+                    case GlobalModule() as global_module:
+                        assert global_module.module_name in sys.modules, f"{global_module.module_name} not in sys.modules"
+                    case AppConfig() as cfg:
+                        @ade.wrap_async(self.error, self.AD.app_dir, f"Failed to start '{app_name}'")
+                        async def safe_start(self: "AppManagement"):
+                            try:
+                                await self.start_app(app_name)
+                            except Exception as exc:
+                                update_actions.apps.failed.add(app_name)
+                                raise ade.AppStartFailure(app_name) from exc
 
-                    @ade.wrap_async(self.error, self.AD.app_dir, f"Failed to start '{app_name}'")
-                    async def safe_start(self: "AppManagement"):
-                        try:
-                            await self.start_app(app_name)
-                        except Exception as exc:
-                            update_actions.apps.failed.add(app_name)
-                            raise ade.AppStartFailure(app_name) from exc
-
-                    if await self.get_state(app_name) != "compile_error":
-                        await safe_start(self)
-                elif isinstance(cfg, GlobalModule):
-                    assert cfg.module_name in sys.modules, f"{cfg.module_name} not in sys.modules"
+                        if await self.get_state(app_name) != "compile_error":
+                            await safe_start(self)
 
     async def _import_modules(self, update_actions: UpdateActions) -> set[str]:
         """Calls ``self.import_module`` for each module in the list
@@ -1341,34 +1362,8 @@ class AppManagement:
         self.update_app(app, disable=False)
 
     @contextlib.asynccontextmanager
-    async def app_state_context(self, app: str, **kwargs):
-        """
-        Context manager that temporarily updates an app's configuration during the context window.
-
-        Args:
-            app (str): The name of the app to manage.
-            **kwargs: Arbitrary keyword arguments representing configuration fields to update temporarily.
-
-        Usage:
-            # Temporarily enable an app
-            with self.app_state_context("my_app", disable=False):
-                # App is enabled during this block
-                pass
-            # App is restored to its original state
-
-            # Temporarily disable an app
-            with self.app_state_context("my_app", disable=True):
-                # App is disabled during this block
-                pass
-            # App is restored to its original state
-
-            # Update multiple configuration fields
-            with self.app_state_context("my_app", disable=False, pin_thread=2):
-                # App has updated config during this block
-                pass
-            # App is restored to its original state
-        """
-        # Get the current state of the app
+    async def app_run_context(self, app: str, **kwargs):
+        """Context manager for running an app."""
         match self.app_config.root.get(app):
             case AppConfig() as app_cfg:
                 # Store the complete original configuration
@@ -1379,12 +1374,18 @@ class AppManagement:
                 return
 
         try:
-            # Set the desired state
             self.update_app(app, **kwargs)
+
+            if app not in self.objects:
+                self.logger.debug("Creating ManagedObject for app '%s'", app)
+                await self.create_app_object(app)
+                await self.AD.threading.calculate_pin_threads()
+
             self.logger.debug("Temporarily updated app '%s' with: %s", app, kwargs)
+            await self.start_app(app)
             yield
         finally:
-            # Restore the complete original state
+            await self.stop_app(app)
             try:
                 self.app_config.root[app] = AppConfig.model_validate(original_config)
                 self.logger.debug("Restored app '%s' to original state", app)

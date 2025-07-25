@@ -3,6 +3,7 @@ Exceptions used by appdaemon
 
 """
 import asyncio
+from contextlib import contextmanager
 import functools
 import inspect
 import json
@@ -176,6 +177,17 @@ def wrap_sync(logger: Logger, app_dir: Path, header: str | None = None):
                 unexpected_block(logger, e)
         return wrapper
     return decorator
+
+
+@contextmanager
+def exception_context(logger: Logger, app_dir: Path, header: str | None = None):
+    """Context manager to handle exceptions in a block of code"""
+    try:
+        yield
+    except AppDaemonException as e:
+        user_exception_block(logger, e, app_dir, header)
+    except Exception as e:
+        unexpected_block(logger, e)
 
 
 # Used in the adstream module

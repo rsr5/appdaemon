@@ -100,10 +100,12 @@ class HassPlugin(PluginBase):
         self.service_logger = self.diag.getChild("services")
         self.logger.info("HASS Plugin initialization complete")
 
-    def stop(self):
-        self.logger.debug("stop() called for %s", self.name)
-        # This will stop waiting for message on the websocket
-        self.AD.loop.create_task(self.ws.close())
+    async def stop(self):
+        await self.ws.close()
+        self.logger.debug("Websocket closed for '%s'", self.name)
+
+        await self.session.close()
+        self.logger.debug("aiohttp session closed for '%s'", self.name)
 
     def create_session(self) -> aiohttp.ClientSession:
         """Handles creating an ``aiohttp.ClientSession`` with the cert information from the plugin config
@@ -299,10 +301,10 @@ class HassPlugin(PluginBase):
                 "data": {
                     "entity_id": entity_id,
                     "new_state": {"state": new_state},
-                    "old_state": {"state": old_state},
+                    # "old_state": {"state": old_state}, # old_state is sometimes None
                 },
             }:
-                self.logger.debug(f'{entity_id} state changed from {old_state} to {new_state}')
+                self.logger.debug(f'{entity_id} state changed to {new_state}')
             case {"event_type": "mobile_app_notification_action", "data": {"action": action}}:
                 self.logger.debug('Mobile action: %s', action)
             case {"event_type": "mobile_app_notification_cleared"}:
@@ -314,6 +316,8 @@ class HassPlugin(PluginBase):
             case {"event_type": other_event}:
                 if other_event.startswith('recorder'):
                     return
+                elif other_event == "state_changed":
+                    self.logger.debug('State changed event received, but not handled')
                 self.logger.debug('Unrecognized event %s', other_event)
 
     @utils.warning_decorator(error_text="Unexpected error during websocket send")
@@ -535,14 +539,8 @@ class HassPlugin(PluginBase):
                     await self.match_ws_msg(msg)
                     continue
                 raise ValueError
-            # except HAAuthenticationError:
-            #     pass
-            # except HAEventsSubError:
-            #     pass
             except Exception:
-                if self.AD.stopping:
-                    self.logger.info("Disconnected from Home Assistant")
-                else:
+                if not self.AD.stopping:
                     self.logger.warning(
                         "Disconnected from Home Assistant, retrying in %s seconds",
                         self.config.retry_secs,

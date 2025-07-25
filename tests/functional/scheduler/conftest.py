@@ -33,6 +33,4 @@ async def ad(running_loop: asyncio.BaseEventLoop, ad_cfg: AppDaemonConfig) -> As
     ad.start()
     yield ad
     logger.info("Back to fixture scope, stopping AppDaemon")
-    if stopping_tasks := ad.stop():
-        logger.debug("Waiting for stopping tasks to complete")
-        await stopping_tasks
+    ad.stop()

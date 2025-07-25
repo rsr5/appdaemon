@@ -22,7 +22,7 @@ from functools import wraps
 from logging import Logger
 from pathlib import Path
 from time import perf_counter
-from typing import TYPE_CHECKING, Any, Callable, Coroutine, Dict, Literal, ParamSpec, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Coroutine, Literal, ParamSpec, Protocol, TypeVar
 
 import dateutil.parser
 import pytz
@@ -1122,19 +1122,20 @@ def write_toml_config(path, **kwargs):
         tomli_w.dump(kwargs, stream)
 
 
-def read_config_file(file: Path, app_config: bool = False) -> dict[str, dict | list]:
+def read_config_file(file: Path, app_config: bool = False) -> dict[str, dict[str, Any]]:
     # raise ValueError
     """Reads a single YAML or TOML file.
 
     This includes all the mechanics for including secrets and environment variables.
 
     Args:
+        file: Path to the configuration file to read.
         app_config: Flag for whether to add the config_path key to the loaded dictionaries
     """
     try:
         file = Path(file) if not isinstance(file, Path) else file
-        match file.suffix:
-            case ".yaml":
+        match file.suffix.lower():
+            case ".yaml" | ".yml":
                 full_cfg = read_yaml_config(file)
             case ".toml":
                 full_cfg = read_toml_config(file)
@@ -1154,7 +1155,7 @@ def read_config_file(file: Path, app_config: bool = False) -> dict[str, dict | l
         raise ade.ConfigReadFailure(file) from exc
 
 
-def read_toml_config(path: Path):
+def read_toml_config(path: Path) -> dict[str, dict[str, Any]]:
     with path.open("rb") as f:
         config = tomli.load(f)
 
@@ -1259,7 +1260,7 @@ def _include_yaml(loader, node):
         return yaml.load(f, Loader=yaml.SafeLoader)
 
 
-def read_yaml_config(file: Path) -> Dict[str, Dict]:
+def read_yaml_config(file: Path) -> dict[str, dict[str, Any]]:
     #
     # First locate secrets file
     #

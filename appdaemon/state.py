@@ -29,7 +29,7 @@ class State:
     AD: "AppDaemon"
     logger: Logger
     name: str = "_state"
-    state: dict[str, dict[str, Any]]
+    state: dict[str, dict[str, Any] | utils.PersistentDict]
 
     app_added_namespaces: Set[str]
 
@@ -65,6 +65,9 @@ class State:
     # @property
     # def namespace_db_path(self) -> Path:
     #     return self.namespace_path /
+
+    def stop(self) -> None:
+        self.save_all_namespaces()
 
     def namespace_db_path(self, namespace: str) -> Path:
         return self.namespace_path / f"{namespace}.db"
@@ -174,11 +177,6 @@ class State:
     def list_namespace_entities(self, namespace: str) -> List[str]:
         if entity_dict := self.state.get(namespace):
             return list(entity_dict.keys())
-
-    def terminate(self):
-        self.logger.debug("terminate() called for state")
-        self.logger.info("Saving all namespaces")
-        self.save_all_namespaces()
 
     async def add_state_callback(
         self,
@@ -810,10 +808,13 @@ class State:
         else:
             self.logger.warning("Namespace: %s cannot be saved", namespace)
 
-    def save_all_namespaces(self):
+    def save_all_namespaces(self) -> None:
+        self.logger.debug("Saving all namespaces")
         for ns, state in self.state.items():
-            if isinstance(state, utils.PersistentDict):
-                self.state[ns].sync()
+            match state:
+                case utils.PersistentDict():
+                    self.logger.info("Saving persistent namespace: %s", ns)
+                    state.sync()
 
     def save_hybrid_namespaces(self):
         for ns, cfg in self.AD.namespaces.items():

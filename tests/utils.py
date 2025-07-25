@@ -42,8 +42,8 @@ def assert_timedelta(
             assert (diff - expected) <= buffer, "Too much discrepancy in time difference"
         except AssertionError:
             logger.error(f"Wrong amount of time between log entries: {diff}")
-            logger.error(f"  {lines[0].msg} at {lines[0].asctime}")
-            logger.error(f"  {lines[1].msg} at {lines[1].asctime}")
+            logger.error(f"  {lines[0].asctime} {lines[0].msg} at ")
+            logger.error(f"  {lines[1].asctime} {lines[1].msg} at ")
             raise
 
     # assert all((diff - expected) <= buffer for diff in time_diffs(records))

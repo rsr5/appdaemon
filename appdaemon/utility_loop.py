@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 
 from . import exceptions as ade
 from . import utils
-from .app_management import UpdateMode
 
 if TYPE_CHECKING:
     from .appdaemon import AppDaemon
@@ -74,19 +73,16 @@ class Utility:
 
     def start(self):
         self.loop_task = self.AD.loop.create_task(self.loop(), name="utility_loop")
-        self.loop_task.add_done_callback(self._loop_cleanup)
+        self.loop_task.add_done_callback(self._loop_final_status)
 
-    def _loop_cleanup(self, task: asyncio.Task) -> None:
+    def _loop_final_status(self, task: asyncio.Task) -> None:
+        """Used only to log how the utility loop ended."""
         if task.cancelled():
             self.logger.debug("Utility loop was cancelled")
         elif task.exception():
             self.logger.error("Utility loop encountered an error", exc_info=task.exception())
         else:
-            self.logger.debug("Utility loop completed successfully")
-
-        # Stop apps
-        if self.AD.apps_enabled:
-            self.AD.loop.create_task(self.AD.app_management.terminate(), name="app_management terminate")
+            self.logger.debug("Utility loop completed gracefully")
 
     async def get_uptime(self) -> timedelta:
         """Get the uptime of AppDaemon as a timedelta.
@@ -148,7 +144,6 @@ class Utility:
         - Starts the web server if configured
         - Waits for all plugins to initialize
         - Registers services
-        - Starts the scheduler task
         - Runs check_app_updates with UpdateMode.INIT if apps are enabled
         """
         self.logger.debug("Starting utility loop")
@@ -169,18 +164,6 @@ class Utility:
             return
 
         await self._register_services()
-
-        # Start the scheduler
-        self.AD.sched.start()
-
-        if self.AD.apps_enabled:
-            self.logger.debug("Reading apps - calling check_app_updates with UpdateMode.INIT")
-            await self.AD.app_management.check_app_updates(mode=UpdateMode.INIT)
-
-            self.logger.info("App initialization complete")
-
-            # Fire APPD Started Event
-            await self.AD.events.process_event("global", {"event_type": "appd_started", "data": {}})
 
     async def loop(self):
         """The main utility loop.

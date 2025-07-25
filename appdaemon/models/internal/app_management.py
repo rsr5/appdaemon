@@ -69,7 +69,7 @@ class LoadingActions:
         order = [n for n in topo_sort(dm.python_deps.dep_graph) if n in items]
         return order
 
-    def start_sort(self, dm: DependencyManager, logger: Logger = None) -> list[str]:
+    def start_sort(self, dm: DependencyManager, logger: Logger | None = None) -> list[str]:
         """Finds the apps that need to be started.
 
         Uses a dependency graph to sort the internal ``init`` and ``reload`` sets together
