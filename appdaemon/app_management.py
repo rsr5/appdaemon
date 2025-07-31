@@ -585,8 +585,8 @@ class AppManagement:
 
         return True
 
-    async def read_all(self, config_files: Iterable[Path]) -> AllAppConfig:
-        config_files = config_files or self.dependency_manager.config_files
+    async def read_all(self, config_files: Iterable[Path] | None) -> AllAppConfig:
+        config_files = config_files if config_files is not None else self.dependency_manager.app_config_files
 
         async def config_model_factory() -> AsyncGenerator[AllAppConfig, None]:
             """Creates a generator that sets the config_path of app configs"""
@@ -604,7 +604,7 @@ class AppManagement:
                     continue
 
                 for name, cfg in new_cfg.root.items():
-                    if isinstance(cfg, AppConfig):
+                    if isinstance(cfg, AppConfig) and not cfg.disable:
                         await self.add_entity(
                             name,
                             state="loaded",
@@ -700,6 +700,14 @@ class AppManagement:
         if update_actions.apps.init_set:
             # If there are any new/modified apps, the dependency graph needs to be updated
             self.dependency_manager.app_deps.refresh_dep_graph()
+
+        update_actions.apps.init |= {
+            name for name, cfg in self.app_config.root.items()
+            if name not in self.objects
+            and isinstance(cfg, AppConfig)
+            and not cfg.disable
+            and await self.get_state(name) != "compile_error"
+        }  # fmt: skip
 
         if self.AD.threading.pin_apps:
             active_apps = self.app_config.active_app_count

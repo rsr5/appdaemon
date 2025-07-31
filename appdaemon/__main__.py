@@ -25,6 +25,7 @@ from time import perf_counter
 
 
 import appdaemon.appdaemon as ad
+from .dependency_manager import DependencyManager
 import appdaemon.utils as utils
 from appdaemon import exceptions as ade
 from appdaemon.app_management import UpdateMode
@@ -300,6 +301,14 @@ class ADMain:
             self.model = parse_config(self.args, self.stop)
             self.setup_logging()
             utils.deprecation_warnings(self.model.appdaemon, self.logger)
+
+            # # Create the dependency manager here so that all the initial file reading happens in here
+            self.dep_manager = DependencyManager.from_app_directory(
+                self.model.appdaemon.app_dir,
+                exclude=self.model.appdaemon.exclude_dirs,
+                config_suffix=self.model.appdaemon.ext,
+            )
+
         except Exception as e:
             # err_logger.exception(e)
             ade.user_exception_block(logger, e, None, header="Failed to configure AppDaemon")
@@ -412,7 +421,7 @@ class ADMain:
         self.AD.start()
         self.logger.debug("Running async event loop forever")
         self.loop.run_forever()
-        pass
+        self.logger.debug("Stopped running async event loop forever")
 
     @contextmanager
     def run_context(self, loop: asyncio.AbstractEventLoop):
@@ -420,6 +429,7 @@ class ADMain:
         try:
             # Initialize AppDaemon
             self.AD = ad.AppDaemon(self.logging, loop, self.model.appdaemon, self._cleanup_stack)
+            self.AD.app_management.dependency_manager = self.dep_manager
             exception_handler = functools.partial(ade.exception_handler, self.AD)
             self.loop.set_exception_handler(exception_handler)
 

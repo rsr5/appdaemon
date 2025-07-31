@@ -23,7 +23,6 @@ from .models.config.app import AppConfig
 if TYPE_CHECKING:
     from .adbase import ADBase
     from .appdaemon import AppDaemon
-    from .models.config.app import AllAppConfig
 
 
 class Threading:
@@ -170,15 +169,8 @@ class Threading:
         if self.total_threads:
             self.pin_apps = False
         else:
-            # Force a config check here so we have an accurate activate app count
-            self.AD.app_management.logger.debug("Reading app config files to determine how many threads to make")
-            cfg_paths = self.AD.app_management.get_app_config_files()
-            if not cfg_paths:
-                self.logger.warning(f"No apps found in {self.AD.app_dir}. This is probably a mistake")
-                self.total_threads = 10
-            else:
-                full_cfg: "AllAppConfig" = await self.AD.app_management.read_all(cfg_paths)
-                self.total_threads = full_cfg.active_app_count
+            full_cfg = self.AD.app_management.dependency_manager.app_deps.app_config
+            self.total_threads = full_cfg.active_app_count
 
         if self.pin_apps:
             self.pin_threads = self.pin_threads or self.total_threads

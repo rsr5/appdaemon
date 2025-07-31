@@ -34,10 +34,6 @@ class Futures:
         match future:
             case asyncio.Task() as task:
                 self.logger.debug(f"Registered a task for {app_name}: {task.get_name()}")
-            # case asyncio.Future() as fut if (name := fut._callbacks[-1][0].__name__) != "safe_remove":
-            case (asyncio.Future() | Future()) as fut:
-                name = fut._callbacks[-1][0].__name__
-                self.logger.debug(f"Registered a future for {app_name}: {name}")
             case _:
                 self.logger.debug(f"Registered a future for {app_name}: {future}")
 
