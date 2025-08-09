@@ -5,7 +5,6 @@ from functools import partial
 from itertools import product
 
 import pytest
-from appdaemon.app_management import UpdateMode
 from appdaemon.appdaemon import AppDaemon
 from appdaemon.utils import parse_timedelta
 
@@ -33,25 +32,18 @@ async def test_run_every(
     ad_id = hex(id(ad))
     logger.info(f"Running test_run_every with AppDaemon ID: {ad_id}")
 
-    ad.app_dir = ad.config_dir / "apps/scheduler"
+    ad.app_dir = ad.config_dir / "apps"
     assert ad.app_dir.exists(), "App directory does not exist"
 
     interval = parse_timedelta(interval)
     run_time = (interval * n) + timedelta(seconds=0.01)
 
-    with caplog.at_level(logging.DEBUG, logger="AppDaemon.run_every_now"):
-        # Initialize the app management system to ensure the dependency manager is initialized
-        await ad.app_management.check_app_updates(mode=UpdateMode.TESTING)
+    app_name = "scheduler_test_app"
+    msg = "asdfasdf"
+    with caplog.at_level(logging.DEBUG, logger=f"AppDaemon.{app_name}"):
+        async with ad.app_management.app_run_context(app_name, start=start, interval=interval, msg=msg):
+            await asyncio.sleep(run_time.total_seconds())
 
-        msg = "asdfasdf"
-        ad.app_management.update_app("run_every_now", start=start, interval=interval, msg=msg)
-        logger.debug(f"App run_every_now updated with start: {start}, interval: {interval}")
-
-        await ad.app_management.create_app_object("run_every_now")
-        await ad.app_management.start_app("run_every_now")
-        await asyncio.sleep(run_time.total_seconds())
-        await ad.app_management.stop_app("run_every_now")
-        # assert False
         check_interval_partial = partial(check_interval, caplog, msg)
 
         match (start, interval):

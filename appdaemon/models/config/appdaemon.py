@@ -55,7 +55,7 @@ class AppDaemonConfig(BaseModel, extra="allow"):
     max_clock_skew: int = 1
 
     loglevel: str = "INFO"
-    module_debug: ModuleLoggingLevels = Field(default_factory=dict)
+    module_debug: ModuleLoggingLevels = Field(default_factory=ModuleLoggingLevels)
 
     api_port: int | None = None
     api_key: SecretStr | None = None
@@ -159,6 +159,14 @@ class AppDaemonConfig(BaseModel, extra="allow"):
             v[n]["name"] = n
         return v
 
+    @model_validator(mode="before")
+    @classmethod
+    def validate_ad_cfg(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if (file := data.get("config_file")) and not data.get("config_dir"):
+                data["config_dir"] = Path(file).parent
+        return data
+
     def model_post_init(self, __context: Any):
         # Convert app_dir to Path object
         self.app_dir = Path(self.app_dir) if not isinstance(self.app_dir, Path) else self.app_dir
@@ -169,10 +177,11 @@ class AppDaemonConfig(BaseModel, extra="allow"):
 
         self.ext = ".toml" if self.write_toml else ".yaml"
 
-    @model_validator(mode="before")
-    @classmethod
-    def validate_ad_cfg(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            if (file := data.get("config_file")) and not data.get("config_dir"):
-                data["config_dir"] = Path(file).parent
-        return data
+        if self.total_threads is not None:
+            self.pin_apps = False
+
+        if self.pin_threads is not None and self.total_threads is not None:
+            # assert self.total_threads is not None, "Using pin_threads requires total_threads to be set."
+            assert self.pin_threads <= self.total_threads, (
+                "Number of pin threads has to be less than or equal to total threads."
+            )

@@ -412,7 +412,8 @@ class ADMain:
     def stop(self):
         """Called by the signal handler to shut AD down."""
         self.stop_time = perf_counter()
-        self.loop.create_task(self.AD.stop())
+        task = self.loop.create_task(self.AD.stop())
+        task.add_done_callback(lambda _: self.loop.stop())
 
     def run(self) -> None:
         """Start AppDaemon up after initial argument parsing."""

@@ -13,7 +13,6 @@ from queue import Queue
 from random import randint
 from threading import Thread
 from typing import TYPE_CHECKING, Any, ClassVar
-
 import iso8601
 
 from . import exceptions as ade
@@ -41,7 +40,6 @@ class Threading:
     diag: Logger
     """Standard python logger named ``Diag``
     """
-    thread_count: int
     threads: dict[str, dict[str, Thread | Queue]]
     """Dictionary with keys of the thread ID (string beginning with `thread-`) and values of
     another dictionary with `thread` and `queue` keys that have values of
@@ -50,9 +48,6 @@ class Threading:
 
     last_stats_time: ClassVar[datetime.datetime] = datetime.datetime.fromtimestamp(0)
     callback_list: list[dict]
-
-    pin_threads: int = 0
-    total_threads: int
 
     next_thread: int = 0
     current_callbacks_executed: int = 0
@@ -64,7 +59,6 @@ class Threading:
         self.log_lock = threading.Lock()
         self.diag = ad.logging.get_diag()
 
-        self.thread_count = 0
         self.threads = {}
 
         # A few shortcuts
@@ -77,18 +71,41 @@ class Threading:
         self.callback_list = []
 
     @property
+    def auto_pin(self) -> bool:
+        """This is derived from pin_apps and total_threads, and is True by default."""
+        return self.pin_apps and self.total_threads is None
+
+    @property
     def pin_apps(self) -> bool:
-        "Whether each app should be pinned to a thread"
+        "Config flag for whether each app should be pinned to a thread"
         return self.AD.config.pin_apps
 
     @pin_apps.setter
     def pin_apps(self, new: bool) -> None:
-        """Set whether each app should be pinned to a thread"""
-        self.AD.config.pin_apps = new
+        """Set the config flag for whether each app should be pinned to a thread"""
+        self.AD.config.pin_apps = bool(new)
 
     @property
-    def total_threads(self) -> int:
-        """Number of threads created for apps.
+    def pin_threads(self) -> int | None:
+        """The number of threads that are dedicated to pinned apps. This should be the actual number of pin threads
+        that have been created and not the number of pin threads there are supposed to be."""
+        return self.AD.config.pin_threads
+
+    @pin_threads.setter
+    def pin_threads(self, new: int | None) -> None:
+        """Set the number of threads that are dedicated to pinned apps."""
+        assert isinstance(new, int) or new is None, "pin_threads must be an integer or None"
+        self.AD.config.pin_threads = new
+
+    @property
+    def thread_count(self) -> int:
+        """The number of threads that have actually been created. This is calculated from the length of the internal
+        `threads` dictionary, so it can't be set directly."""
+        return len(self.threads)
+
+    @property
+    def total_threads(self) -> int | None:
+        """Number of threads to create for apps.
 
         By default this is automatically calculated, but can also be manually configured by the user in
         ``appdaemon.yaml``.
@@ -165,34 +182,43 @@ class Threading:
             utils.dt_to_str(datetime.datetime(1970, 1, 1, 0, 0, 0, 0)),
         )
 
-    async def create_initial_threads(self):
-        if self.total_threads:
-            self.pin_apps = False
-        else:
-            full_cfg = self.AD.app_management.dependency_manager.app_deps.app_config
-            self.total_threads = full_cfg.active_app_count
+    async def create_initial_threads(self) -> None:
+        """
+        Creates the worker threads using self.add_thread().
 
-        if self.pin_apps:
-            self.pin_threads = self.pin_threads or self.total_threads
-        else:
-            self.pin_threads = 0
-            self.total_threads = self.total_threads or 10
+        By default, the number of threads created is determined by the number of active (not disabled) apps. This can
+        be overridden with the `total_threads` config setting.
 
-        if self.pin_threads > self.total_threads:
-            raise ValueError("pin_threads cannot be > total_threads")
+        Also by default, all of the threads created will be for pinned apps, but this can be overridden to be just a
+        subset of the `total_threads` with the `pin_threads` setting.
+        """
+        match self.total_threads, self.pin_apps:
+            case None, True:
+                self.total_threads = self.pin_threads = (
+                    self.AD.app_management.dependency_manager.app_deps.app_config.active_app_count
+                    or 1
+                )
+                self.logger.info(
+                    "Starting apps with %s worker threads. Apps will all be assigned threads and pinned to them.",
+                    self.total_threads,
+                )
+            case int(), False:
+                self.logger.info(
+                    "Starting apps with %s worker threads, with %s reserved for pinned apps",
+                    self.total_threads,
+                    self.pin_threads,
+                )
+                self.pin_threads = 0
+            case _:
+                self.logger.error("Invalid thread configuration.")
+                raise ade.InvalidThreadConfiguration(
+                    self.total_threads,
+                    self.pin_apps,
+                    self.pin_threads,
+                )
 
-        if self.pin_threads < 0:
-            raise ValueError("pin_threads cannot be < 0")
-
-        self.logger.info(
-            "Starting Apps with %s workers and %s pins",
-            self.total_threads,
-            self.pin_threads,
-        )
-
-        self.next_thread = self.pin_threads
-
-        self.thread_count = 0
+        assert self.pin_threads is not None
+        assert self.total_threads is not None and self.total_threads > 0
         for _ in range(self.total_threads):
             await self.add_thread(silent=True)
 
@@ -333,7 +359,7 @@ class Threading:
                     self.logger.critical("Pinned apps were: %s", self.get_pinned_apps(thread_id))
                     self.logger.critical("Thread will be restarted")
                     id = thread_id.split("-")[1]
-                    await self.add_thread(silent=False, pinthread=False, id=id)
+                    await self.add_thread(silent=False, id=id)
                 if await self.get_state("_threading", "admin", "thread.{}".format(thread_id)) != "idle":
                     start = utils.str_to_dt(
                         await self.get_state(
@@ -500,44 +526,35 @@ class Threading:
     # Pinning
     #
 
-    async def add_thread(
-        self,
-        silent: bool = False,
-        pinthread: bool = False,
-        id: int | str | None = None,
-    ):
+    async def add_thread(self, silent: bool = False, id: int | str | None = None) -> None:
         if id is None:
-            tid = self.thread_count
+            thread_id = self.thread_count
         else:
-            tid = id
+            thread_id = id
         if silent is False:
-            self.logger.info("Adding thread %s", tid)
-        t = threading.Thread(target=self.worker)
-        t.daemon = True
-        t.name = f"thread-{tid}"
+            self.logger.info("Adding thread %s", thread_id)
+        thread = threading.Thread(target=self.worker, name=f"thread-{thread_id}", daemon=True)
+        thread_entity = f"thread.{thread.name}"
         if id is None:
             await self.add_entity(
                 "admin",
-                "thread.{}".format(t.name),
+                thread_entity,
                 "idle",
                 {"q": 0, "is_alive": True, "time_called": utils.dt_to_str(datetime.datetime(1970, 1, 1, 0, 0, 0, 0))},
             )
-            self.threads[t.name] = {}
-            self.threads[t.name]["queue"] = Queue(maxsize=0)
-            t.start()
-            self.thread_count += 1
-            if pinthread is True:
-                self.pin_threads += 1
+            self.threads[thread.name] = {}
+            self.threads[thread.name]["queue"] = Queue(maxsize=0)
+            thread.start()
         else:
             await self.set_state(
                 "_threading",
                 "admin",
-                "thread.{}".format(t.name),
+                thread_entity,
                 state="idle",
                 is_alive=True,
             )
 
-        self.threads[t.name]["thread"] = t
+        self.threads[thread.name]["thread"] = thread
 
     async def calculate_pin_threads(self):
         """Assigns thread numbers to apps that are supposed to be pinned"""

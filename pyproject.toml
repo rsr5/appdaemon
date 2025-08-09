@@ -99,6 +99,7 @@ addopts = [
 ]
 markers = [
     "ci: mark test to run in CI environment",
+    "functional: mark test as functional test",
 ]
 
 # black configuration
@@ -166,16 +167,15 @@ docstring-code-format = false
 
 [tool.uv]
 dev-dependencies = [
-    # "uv>=0.4.8",
-    "pre-commit>=3.8.0",
-    "ruff>=0.6.3",
-    "pytest>=8.3.2",
     "build>=1.2.1",
     "gitpython>=3.1.43",
     "ipykernel>=6.29.5",
-    "rich>=13.8.0",
     "notebook>=7.3.2",
+    "pre-commit>=3.8.0",
+    "pytest>=8.3.2",
     "pytest-asyncio>=1.0.0",
+    "rich>=13.8.0",
+    "ruff>=0.6.3",
 ]
 
 [tool.codespell]

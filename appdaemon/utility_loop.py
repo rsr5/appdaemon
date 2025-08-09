@@ -101,6 +101,7 @@ class Utility:
             await self.AD.threading.create_initial_threads()
             await self.AD.app_management.init_admin_stats()
         else:
+            # Apps are disabled, so just create a single thread
             await self.AD.threading.add_thread(silent=True)
             self.total_threads = 1
 

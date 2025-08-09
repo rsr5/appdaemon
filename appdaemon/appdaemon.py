@@ -23,14 +23,13 @@ from appdaemon.thread_async import ThreadAsync
 from appdaemon.threads import Threading
 from appdaemon.utility_loop import Utility
 
-from . import utils
 
 if TYPE_CHECKING:
     from appdaemon.http import HTTP
     from appdaemon.logging import Logging
 
 
-class AppDaemon(metaclass=utils.Singleton):
+class AppDaemon:
     """Top-level container for the subsystem objects. This gets passed to the subsystem objects and stored in them as
     the ``self.AD`` attribute.
 
@@ -382,6 +381,7 @@ class AppDaemon(metaclass=utils.Singleton):
         return self.config.utility_delay
 
     def start(self) -> None:
+        self.logger.debug("Starting AppDaemon")
         self.thread_async.start()
         self.sched.start()
         self.utility.start()
@@ -400,7 +400,7 @@ class AppDaemon(metaclass=utils.Singleton):
         - :class:`~.scheduler.Scheduler`
         - :class:`~.state.State`
         """
-        self.logger.info("Shutting down AppDaemon")
+        self.logger.info("Stopping AppDaemon")
         self.stopping = True
 
         # Subsystems are able to create tasks during their stop methods
@@ -419,13 +419,17 @@ class AppDaemon(metaclass=utils.Singleton):
         self.sched.stop()
         self.state.stop()
 
+        self.executor.shutdown(wait=True)
+
         # This creates a task that will wait for all the ones that were running when stop() was called to finish
         # before stopping the event loop. This allows subsystems to create tasks during their own stop methods
-        running_tasks = asyncio.all_tasks()
+        current_task = asyncio.current_task()
+        running_tasks = [task for task in asyncio.all_tasks() if task is not current_task]
         self.logger.debug(f"Waiting for {len(running_tasks)} tasks to finish before shutting down")
         all_coro = asyncio.wait(running_tasks, return_when=asyncio.ALL_COMPLETED, timeout=3)
         gather_task = asyncio.create_task(all_coro, name="appdaemon_stop_tasks")
-        gather_task.add_done_callback(lambda _: self.loop.stop())
+        gather_task.add_done_callback(lambda _: self.logger.debug("All tasks finished"))
+        await gather_task
 
     #
     # Utilities

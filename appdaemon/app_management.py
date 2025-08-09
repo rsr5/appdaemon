@@ -166,6 +166,8 @@ class AppManagement:
     def start(self) -> None:
         self.logger.debug("Starting the app management subsystem")
         if self.AD.apps_enabled:
+            self.AD.loop.create_task(self.init_admin_entities())
+
             task = self.AD.loop.create_task(
                 self.check_app_updates(mode=UpdateMode.INIT),
                 name="check_app_updates",
@@ -201,6 +203,21 @@ class AppManagement:
             entity_id = name
 
         return await self.AD.state.get_state("_app_management", "admin", entity_id, **kwargs)
+
+    async def init_admin_entities(self):
+        for app_name, cfg in self.app_config.root.items():
+            match cfg:
+                case AppConfig() as app_cfg:
+                    await self.add_entity(
+                        app_name,
+                        state="loaded",
+                        attributes={
+                            "totalcallbacks": 0,
+                            "instancecallbacks": 0,
+                            "args": app_cfg.args,
+                            "config_path": app_cfg.config_path,
+                        },
+                    )
 
     async def add_entity(self, name: str, state, attributes):
         # not a fully qualified entity name
@@ -715,7 +732,7 @@ class AppManagement:
                 threads_to_add = active_apps - self.AD.threading.thread_count
                 self.logger.debug(f"Adding {threads_to_add} threads based on the active app count")
                 for _ in range(threads_to_add):
-                    await self.AD.threading.add_thread(silent=False, pinthread=True)
+                    await self.AD.threading.add_thread(silent=False)
 
     @utils.executor_decorator
     def read_config_file(self, file: Path) -> AllAppConfig:
@@ -814,7 +831,6 @@ class AppManagement:
 
         return wrapper
 
-    # @utils.timeit
     async def check_app_updates(
         self,
         plugin_ns: str | None = None,
@@ -1371,7 +1387,12 @@ class AppManagement:
 
     @contextlib.asynccontextmanager
     async def app_run_context(self, app: str, **kwargs):
-        """Context manager for running an app."""
+        """Context manager for running an app to help during testing.
+
+        Args:
+            app (str): The name of the app to run. Must have an entry in the app_config root.
+            **kwargs: Arbitrary keyword arguments representing configuration fields to temporarily update the app with.
+        """
         match self.app_config.root.get(app):
             case AppConfig() as app_cfg:
                 # Store the complete original configuration
@@ -1382,14 +1403,21 @@ class AppManagement:
                 return
 
         try:
-            self.update_app(app, **kwargs)
+            if kwargs:
+                self.update_app(app, **kwargs)
+                self.logger.debug("Temporarily updated app '%s' with: %s", app, kwargs)
 
+            # Ensure there's at least one thread available
+            if not self.AD.threading.thread_count:
+                await self.AD.threading.create_initial_threads()
+
+            created_app_object = False
             if app not in self.objects:
                 self.logger.debug("Creating ManagedObject for app '%s'", app)
                 await self.create_app_object(app)
                 await self.AD.threading.calculate_pin_threads()
+                created_app_object = True
 
-            self.logger.debug("Temporarily updated app '%s' with: %s", app, kwargs)
             await self.start_app(app)
             yield
         finally:
@@ -1399,6 +1427,8 @@ class AppManagement:
                 self.logger.debug("Restored app '%s' to original state", app)
             except ValidationError as e:
                 self.logger.warning("Failed to restore app '%s' to original state: %s", app, e)
+            if created_app_object:
+                self.objects.pop(app)
 
     @utils.executor_decorator
     def remove_app(self, app: str, **kwargs):

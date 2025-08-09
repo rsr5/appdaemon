@@ -69,13 +69,22 @@ def user_exception_block(logger: Logger, exception: AppDaemonException, app_dir:
         indent = ' ' * i * 2
 
         match exc:
+            case AssertionError():
+                logger.error(f"{indent}{exc.__class__.__name__}: {exc}")
+                continue
             case ValidationError():
-                errors = exc.errors()
-                if errors[0]['type'] == 'missing':
-                    app_name = errors[0]['loc'][0]
-                    field = errors[0]['loc'][-1]
-                    logger.error(f"{indent}App '{app_name}' is missing required field: {field}")
-                    continue
+                for error in exc.errors():
+                    match error:
+                        case {"type": "missing", "msg": msg, "loc": loc}:
+                            app_name = loc[0]
+                            field = loc[-1]
+                            logger.error(f"{indent}App '{app_name}' has an assertion error in field '{field}': {msg}")
+                        case {"type": "assertion_error", "msg": msg, "loc": loc}:
+                            app_name = loc[0]
+                            field = loc[-1]
+                            logger.error(f"{indent}Assertion error in app '{app_name}' field '{field}': {msg}")
+                        case _:
+                            pass
             case AppDaemonException():
                 for i, line in enumerate(str(exc).splitlines()):
                     if i == 0:
@@ -239,6 +248,7 @@ class ServiceException(AppDaemonException):
             f"Services that exist in {self.domain}: {', '.join(self.domain_services)}"
         )
 
+
 @dataclass
 class DomainNotSpecified(AppDaemonException):
     namespace: str
@@ -388,6 +398,20 @@ class PinOutofRange(AppDaemonException):
 
     def __str__(self):
         return f"Pin thread {self.pin_thread} out of range. Must be between 0 and {self.total_threads - 1}"
+
+
+@dataclass
+class InvalidThreadConfiguration(AppDaemonException):
+    total_threads: int | None
+    pin_apps: bool
+    pin_threads: int | None
+
+    def __str__(self):
+        res = "Invalid thread configuration:\n"
+        res += f"  total_threads: {self.total_threads}\n"
+        res += f"  pin_apps:      {self.pin_apps}\n"
+        res += f"  pin_threads:   {self.pin_threads}\n"
+        return res
 
 @dataclass
 class BadClassSignature(AppDaemonException):

@@ -37,7 +37,7 @@ async def running_loop():
     return asyncio.get_running_loop()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def ad_cfg() -> AppDaemonConfig:
     logger.debug("Creating AppDaemonConfig object")
     return AppDaemonConfig.model_validate(
@@ -63,34 +63,6 @@ def ad_cfg() -> AppDaemonConfig:
             },
         )
     )
-
-
-@pytest_asyncio.fixture(scope="module", loop_scope="session")
-async def ad_obj(logging_obj: Logging, running_loop, ad_cfg: AppDaemonConfig):
-    logger = logging.getLogger("AppDaemon._test")
-    logger.info(f"Passed loop: {hex(id(running_loop))}")
-    assert running_loop == asyncio.get_running_loop(), "The running loop should match the one passed in"
-
-    ad = AppDaemon(
-        logging=logging_obj,
-        loop=running_loop,
-        ad_config_model=ad_cfg,
-    )
-
-    for cfg in ad.logging.config.values():
-        logger = logging.getLogger(cfg["name"])
-        logger.propagate = True
-        logger.setLevel("DEBUG")
-
-    # This can't be done here because the test might set the app directory to a different location
-    # await ad.app_management.check_app_updates(mode=UpdateMode.TESTING)
-
-    ad.start()
-    yield ad
-    logger.info("Back to fixture scope, stopping AppDaemon")
-    if stopping_tasks := ad.stop():
-        logger.debug("Waiting for stopping tasks to complete")
-        await stopping_tasks
 
 
 @pytest_asyncio.fixture(scope="module")

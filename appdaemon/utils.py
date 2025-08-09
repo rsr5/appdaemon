@@ -1425,6 +1425,7 @@ def recursive_get_files(base: Path, suffix: str, exclude: set[str] | None = None
     Yields:
         Path objects to files that have the matching extension and are readable.
     """
+    exclude = set() if exclude is None else exclude
     for item in base.iterdir():
         if item.name.startswith(".") or (exclude is None or item.name in exclude):
             continue
