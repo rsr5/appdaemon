@@ -1,47 +1,51 @@
-from enum import Enum
+import asyncio
 from typing import Any
 
 from appdaemon.adapi import ADAPI
 
 TEST_EVENT = "test_event"
 
-class EventTestAppMode(str, Enum):
-    """Enum for different modes of the EventTestApp."""
-    BASIC = "basic"
-    WITH_LISTEN_KWARGS = "listen_kwargs"
 
+class TestEventCallback(ADAPI):
+    """App for testing the event callback functionality.
 
-class EventTestApp(ADAPI):
-    """A simple AppDaemon app to test event handling."""
+    It listens for an event and fires it after a delay. Tests can add keyword arguments to both the listen_event and
+    fire_event calls.
 
+    Args:
+        delay: The delay before calling the self.test_fire method
+        listen_kwargs: The keyword arguments to pass to the listen_event method
+        fire_kwargs: The keyword arguments to pass to the fire_event method
+    """
     def initialize(self):
-        self.log("EventTestApp initialized")
-        self.add_namespace("test", persist=False)
-        self.set_namespace("test")
-
-        self.log(f"Running in {self.mode}")
-        match self.mode:
-            case EventTestAppMode.BASIC:
-                self.listen_event(self.event_callback, event=TEST_EVENT)
-            case EventTestAppMode.WITH_LISTEN_KWARGS:
-                self.listen_event(self.event_callback, event=TEST_EVENT, listen_kwargs=123)
-
-        self.run_in(self.trigger_event, delay=self.args.get("delay", 0.1), message=self.args.get("message"))
-        # self.trigger_event(message=self.args.get("message", "Hello from EventTestApp"))
+        self.log(f"{self.__class__.__name__} initialized")
+        self.listen_event(self.event_callback, self.event, **self.listen_kwargs)
+        self.run_in(self.test_fire, delay=self.args.get("delay", 0.1), **self.fire_kwargs)
+        self.execute_event = asyncio.Event()
 
     @property
-    def mode(self) -> EventTestAppMode:
-        return EventTestAppMode(self.args.get("mode", EventTestAppMode.BASIC))
+    def event(self) -> str:
+        return self.args.get("event", TEST_EVENT)
 
-    def trigger_event(self, **kwargs: Any) -> None:
-        """Trigger a test event."""
-        self.log("Triggering test_event")
-        self.fire_event(TEST_EVENT, **kwargs)
+    @property
+    def listen_kwargs(self) -> dict[str, Any]:
+        return self.args.get("listen_kwargs", {})
+
+    @property
+    def fire_kwargs(self) -> dict[str, Any]:
+        return self.args.get("fire_kwargs", {})
+
+    def test_fire(self, **kwargs):
+        self.logger.info("Firing event with kwargs: %s", kwargs)
+        self.fire_event(self.event, **kwargs)
 
     def event_callback(self, event_type: str, data: dict[str, Any], **kwargs: Any) -> None:
         """Callback function for handling events."""
+        assert isinstance(event_type, str), "Event type should be a string"
         assert isinstance(data, dict), "Event data should be a dictionary"
+        assert all(isinstance(k, str) for k in kwargs.keys()), "All keys in kwargs should be strings"
 
-        self.log(f"Event '{event_type}' received with data: {data}")
-        self.log(f"Event kwargs: {kwargs}")
-        self.log("Event callback executed successfully")
+        self.logger.info("Event callback executed")
+        self.logger.info("Event callback data: %s", data)
+        self.logger.info("Event callback kwargs: %s", kwargs)
+        self.execute_event.set()

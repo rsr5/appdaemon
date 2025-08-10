@@ -1,40 +1,68 @@
 import asyncio
 import logging
+from collections.abc import AsyncGenerator, Generator
+from contextlib import asynccontextmanager
 from datetime import datetime
 
 import pytest
 import pytest_asyncio
 from appdaemon import AppDaemon
+from appdaemon.dependency_manager import DependencyManager
 from appdaemon.logging import Logging
+from appdaemon.models.config.app import AppConfig
 from appdaemon.models.config.appdaemon import AppDaemonConfig
-from astral import LocationInfo
-from astral.location import Location
+from appdaemon.utils import format_timedelta, recursive_get_files
 
 logger = logging.getLogger("AppDaemon._test")
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create a single event loop for the session."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
+@pytest_asyncio.fixture(scope="function")
+async def ad(running_loop: asyncio.BaseEventLoop, ad_cfg: AppDaemonConfig) -> AsyncGenerator[AppDaemon]:
+    """Pytest fixture that provides a full AppDaemon instance for tests.
 
+    General steps:
+      - Create the top-level AppDaemon object.
+      - Set the log levels of the main logs to DEBUG.
+      - Process the import paths.
+      - Set up the dependency manager with the app directory.
+        - Reads all the config files in the app directory.
+      - Disables apps for the duration of the fixture.
+      - Starts/stops the AppDaemon instance.
+    """
+    # logger.info(f"Passed loop: {hex(id(running_loop))}")
+    assert running_loop == asyncio.get_running_loop(), "The running loop should match the one passed in"
 
-@pytest.fixture(scope="session")
-def logging_obj():
-    logger.debug("Creating Logging object")
-    return Logging(
-        {
-            "main_log": {"format": "{asctime} {levelname} {appname}: {message}"},
-            "diag_log": {"level": "WARNING", "filename": "tests/diag.log"},
-        }
+    ad = AppDaemon(
+        logging=Logging({"main_log": {"format": "{levelname} {appname}: {message}"}}),
+        loop=running_loop,
+        ad_config_model=ad_cfg,
     )
+    logger.info(f"Created AppDaemon object {hex(id(ad))}")
 
+    for cfg in ad.logging.config.values():
+        logger_ = logging.getLogger(cfg["name"])
+        logger_.propagate = True
+        logger_.setLevel("DEBUG")
 
-@pytest_asyncio.fixture(scope="session", loop_scope="session")
-async def running_loop():
-    return asyncio.get_running_loop()
+    await ad.app_management._process_import_paths()
+    config_files = list(recursive_get_files(base=ad.app_dir, suffix=ad.config.ext))
+    ad.app_management.dependency_manager = DependencyManager(python_files=list(), config_files=config_files)
+
+    for cfg in ad.app_management.app_config.root.values():
+        match cfg:
+            case AppConfig() as app_config:
+                app_config.disable = True
+
+    ad.start()
+    logger.info(f"AppDaemon[{hex(id(ad))}] started")
+    yield ad
+    logger.info(f"AppDaemon[{hex(id(ad))}] stopping")
+    await ad.stop()
+
+    for cfg in ad.app_management.app_config.root.values():
+        match cfg:
+            case AppConfig() as app_config:
+                app_config.disable = True
 
 
 @pytest.fixture(scope="function")
@@ -61,6 +89,7 @@ def ad_cfg() -> AppDaemonConfig:
                 # "_events": "DEBUG",
                 "_utility": "DEBUG",
             },
+            namespaces={"test": {}},
         )
     )
 
@@ -91,14 +120,41 @@ async def ad_obj_fast(logging_obj: Logging, running_loop, ad_cfg: AppDaemonConfi
     pass
 
 
-@pytest.fixture
-def location() -> Location:
-    return Location(
-        LocationInfo(
-            name="Test Location",
-            region="Test Region",
-            timezone="America/New_York",
-            latitude=40.7128,
-            longitude=-74.0060,
-        )
+@pytest.fixture(scope="session")
+def event_loop() -> Generator[asyncio.AbstractEventLoop]:
+    """Create a single event loop for the session."""
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
+
+
+@pytest.fixture(scope="session")
+def logging_obj() -> Logging:
+    logger.debug("Creating Logging object")
+    return Logging(
+        {
+            "main_log": {"format": "{asctime} {levelname} {appname}: {message}"},
+            "diag_log": {"level": "WARNING", "filename": "tests/diag.log"},
+        }
     )
+
+
+@pytest_asyncio.fixture(scope="function")
+async def run_app_for_time(ad: AppDaemon, caplog: pytest.LogCaptureFixture):
+    @asynccontextmanager
+    async def _run(app_name: str, run_time: float | None = None, **kwargs):
+        with caplog.at_level(logging.DEBUG, logger=f"AppDaemon.{app_name}"):
+            async with ad.app_management.app_run_context(app_name, **kwargs):
+                logger.info(f"===== Running app {app_name} for {format_timedelta(run_time)}")
+                logger.info(f"Temporarily adding args to app: {kwargs}")
+                if run_time is not None:
+                    await asyncio.sleep(run_time)
+                logger.info("=== Done, yielding caplog for inspection")
+                yield ad, caplog
+
+    return _run
+
+
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def running_loop():
+    return asyncio.get_running_loop()

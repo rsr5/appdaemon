@@ -7,6 +7,11 @@ scheduler_test_app:
   module: scheduler_test_app
   class: SchedulerTestApp
 
-event_test_app:
+test_run_in:
+  module: scheduler_test_app
+  class: TestSchedulerRunIn
+
+test_event_app:
   module: event_test_app
-  class: EventTestApp
+  class: TestEventCallback
+  event: "test_event"

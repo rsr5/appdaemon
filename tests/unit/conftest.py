@@ -6,6 +6,7 @@ from functools import partial
 
 import pytest
 from appdaemon import utils
+from astral import LocationInfo
 from astral.location import Location
 from pytz import BaseTzInfo, timezone
 
@@ -68,3 +69,16 @@ def parser_location(tz: BaseTzInfo, location: Location) -> partial[datetime]:
 @pytest.fixture
 def time_at_elevation(location: Location, default_now: datetime) -> Callable[..., datetime]:
     return partial(location.time_at_elevation, date=default_now.date(), local=True)
+
+
+@pytest.fixture
+def location() -> Location:
+    return Location(
+        LocationInfo(
+            name="Test Location",
+            region="Test Region",
+            timezone="America/New_York",
+            latitude=40.7128,
+            longitude=-74.0060,
+        )
+    )

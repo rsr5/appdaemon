@@ -29,3 +29,27 @@ class SchedulerTestApp(ADAPI):
     def run_every_callback(self, **kwargs) -> None:
         """Callback function for run_every."""
         self.log(f"Run every callback executed with kwargs: {kwargs}")
+
+
+
+class TestSchedulerRunIn(ADAPI):
+    """A test app to verify run_in functionality."""
+
+    def initialize(self):
+        self.set_namespace("test")
+
+        assert "delay" in self.args, "Delay argument is required"
+        delay = self.args["delay"]
+        self.logger.info(f"Running with a delay of {delay} seconds")
+
+        self.run_in(self.run_in_callback, delay=delay, test_id=self.test_id)
+        self.logger.info(f"{self.__class__.__name__} initialized")
+
+    @property
+    def test_id(self) -> str:
+        """Unique identifier for the test run."""
+        return self.args.get("test_id", "default_test_id")
+
+    def run_in_callback(self, **kwargs) -> None:
+        """Callback function for run_in."""
+        self.logger.info("Run in callback executed with kwargs: %s", kwargs)
