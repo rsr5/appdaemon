@@ -457,13 +457,15 @@ class Scheduler:
         self,
         interval: int | float | timedelta,
         start: time | datetime | str | None = None,
+        buffer: str | float | int | timedelta = 0.01,
     ) -> datetime:
+        interval = utils.parse_timedelta(interval)
         start = "now" if start is None else start
         aware_start = await self.parse_datetime(start, aware=True)
-        interval = utils.parse_timedelta(interval)
         assert isinstance(aware_start, datetime) and aware_start.tzinfo is not None
+        buffer = utils.parse_timedelta(buffer)
         while True:
-            if aware_start >= (await self.get_now() - timedelta(seconds=0.01)):
+            if aware_start >= (await self.get_now() - buffer):
                 return aware_start
             else:
                 aware_start += interval
