@@ -1,7 +1,7 @@
 import asyncio
 import logging
-from collections.abc import AsyncGenerator, Generator
-from contextlib import asynccontextmanager
+from collections.abc import AsyncGenerator, Callable, Generator
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import datetime
 
 import pytest
@@ -17,7 +17,7 @@ logger = logging.getLogger("AppDaemon._test")
 
 
 @pytest_asyncio.fixture(scope="function")
-async def ad(running_loop: asyncio.BaseEventLoop, ad_cfg: AppDaemonConfig) -> AsyncGenerator[AppDaemon]:
+async def ad(running_loop: asyncio.BaseEventLoop, ad_cfg: AppDaemonConfig, logging_obj: Logging) -> AsyncGenerator[AppDaemon]:
     """Pytest fixture that provides a full AppDaemon instance for tests.
 
     General steps:
@@ -33,7 +33,7 @@ async def ad(running_loop: asyncio.BaseEventLoop, ad_cfg: AppDaemonConfig) -> As
     assert running_loop == asyncio.get_running_loop(), "The running loop should match the one passed in"
 
     ad = AppDaemon(
-        logging=Logging({"main_log": {"format": "{levelname} {appname}: {message}"}}),
+        logging=logging_obj,
         loop=running_loop,
         ad_config_model=ad_cfg,
     )
@@ -83,10 +83,10 @@ def ad_cfg() -> AppDaemonConfig:
             timewarp=1.0,
             max_clock_skew=1,
             # loglevel="INFO",
-            # module_debug={"_events": "DEBUG"},
             module_debug={
                 "_app_management": "DEBUG",
                 # "_events": "DEBUG",
+                # "_scheduler": "DEBUG",
                 "_utility": "DEBUG",
             },
             namespaces={"test": {}},
@@ -139,8 +139,10 @@ def logging_obj() -> Logging:
     )
 
 
+AsyncTempTest = Callable[..., AbstractAsyncContextManager[tuple[AppDaemon, pytest.LogCaptureFixture]]]
+
 @pytest_asyncio.fixture(scope="function")
-async def run_app_for_time(ad: AppDaemon, caplog: pytest.LogCaptureFixture):
+async def run_app_for_time(ad: AppDaemon, caplog: pytest.LogCaptureFixture) -> AsyncTempTest:
     @asynccontextmanager
     async def _run(app_name: str, run_time: float | None = None, **kwargs):
         with caplog.at_level(logging.DEBUG, logger=f"AppDaemon.{app_name}"):

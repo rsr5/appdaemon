@@ -846,13 +846,10 @@ class Threading:
         # If the app isinitializing, it's not ready for this yet so discard
         #
         # not a fully qualified entity name
-        entity_id = "app.{}".format(name)
-
-        state = await self.AD.state.get_state("_threading", "admin", entity_id)
-
+        state = await self.AD.state.get_state("_threading", "admin", f"app.{name}")
         if state in ["initializing"]:
-            self.logger.debug("Incoming event while initializing - discarding")
-            return
+            self.logger.warning("Incoming event while initializing - discarding")
+            # return
 
         unconstrained = True
         #

@@ -858,6 +858,10 @@ class AppManagement:
         if not self.AD.apps_enabled:
             return
 
+        match mode:
+            case UpdateMode.INIT:
+                await self.AD.sched.active_event.wait()
+
         async with self.check_updates_lock:
             await self._process_filters()
 

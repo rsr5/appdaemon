@@ -1,16 +1,10 @@
-import asyncio
 import logging
-from collections.abc import AsyncGenerator, Generator, Iterable
-from contextlib import asynccontextmanager
+from collections.abc import Generator, Iterable
 from datetime import datetime, timedelta
 from itertools import pairwise
 from logging import LogRecord
 
 import pytest
-from appdaemon import utils
-from appdaemon.app_management import UpdateActions, UpdateMode
-from appdaemon.appdaemon import AppDaemon
-from appdaemon.models.config import AppConfig
 
 logger = logging.getLogger("AppDaemon._test")
 
@@ -47,36 +41,3 @@ def assert_timedelta(
             raise
 
     # assert all((diff - expected) <= buffer for diff in time_diffs(records))
-
-
-@asynccontextmanager
-async def pseudo_run(ad_obj: AppDaemon, app_name: str, duration: float) -> AsyncGenerator[AppDaemon]:
-    """Run a specific app temporarily for a given duration."""
-    try:
-        await ad_obj.app_management.check_app_updates(mode=UpdateMode.TESTING)
-
-        # Must set before the app is started
-        await ad_obj.sched.set_start_time()
-
-        match ad_obj.app_management.app_config.root[app_name]:
-            case AppConfig() as app_cfg:
-                app_cfg.disable = False
-                ad_obj.app_management.dependency_manager.app_deps.refresh_dep_graph()
-
-        actions = UpdateActions()
-        actions.apps.init.add(app_name)
-        await ad_obj.app_management._create_and_start_apps(actions)
-        # ad_obj.start()
-
-        duration_str = utils.format_timedelta(timedelta(seconds=duration))
-        logger.debug(f"Sleeping for {duration_str} to allow {app_name} to run")
-        await asyncio.sleep(duration)
-        logger.debug(f"Finished sleeping for {duration_str} for {app_name} complete")
-        yield ad_obj
-    finally:
-        logger.debug("Finally block reached in run_app_temporarily")
-        await ad_obj.app_management.check_app_updates(mode=UpdateMode.TERMINATE)
-        match ad_obj.app_management.app_config.root[app_name]:
-            case AppConfig() as app_cfg:
-                app_cfg.disable = True
-                ad_obj.app_management.dependency_manager.app_deps.refresh_dep_graph()

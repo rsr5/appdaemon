@@ -10,8 +10,8 @@ class SchedulerTestAppMode(str, Enum):
 
 class SchedulerTestApp(ADAPI):
     def initialize(self):
+        self.set_log_level('DEBUG')
         self.log("SchedulerTestApp initialized")
-        self.add_namespace("test", persist=False)
         self.set_namespace("test")
 
         self.log(f"Running in {self.mode} mode")

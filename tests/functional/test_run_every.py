@@ -1,58 +1,48 @@
-import asyncio
 import logging
+import re
+import uuid
 from datetime import timedelta
 from functools import partial
 from itertools import product
 
 import pytest
-from appdaemon.appdaemon import AppDaemon
 from appdaemon.utils import parse_timedelta
 
-from tests import utils
+from tests.conftest import AsyncTempTest
 
 from .utils import check_interval
 
 logger = logging.getLogger("AppDaemon._test")
 
 
-INTERVALS = ["00:00:0.53", 0.75, 2, timedelta(seconds=0.87)]
-STARTS = ["now", "now + 00:00:0.5", "now - 00:00:10"]
+INTERVALS = ["00:0.35", 1, timedelta(seconds=0.87)]
+STARTS = ["now - 00:00.5", "now", "now + 00:0.5"]
 
 
 @pytest.mark.asyncio(loop_scope="session")
 @pytest.mark.parametrize(("start", "interval"), product(STARTS, INTERVALS))
 async def test_run_every(
-    ad: AppDaemon,
-    caplog: pytest.LogCaptureFixture,
+    run_app_for_time: AsyncTempTest,
     interval: str | int | float | timedelta,
     start: str,
-    n: int = 3,
+    n: int = 5,
 ) -> None:
-    logging.info("Starting test_run_every with parameters: %s, %s", interval, start)
-    ad_id = hex(id(ad))
-    logger.info(f"Running test_run_every with AppDaemon ID: {ad_id}")
-
-    ad.app_dir = ad.config_dir / "apps"
-    assert ad.app_dir.exists(), "App directory does not exist"
-
     interval = parse_timedelta(interval)
     run_time = (interval * n) + timedelta(seconds=0.01)
+    if (parts := re.split(r"\s+[\+]\s+", start)) and len(parts) == 2:
+        _, offset = parts
+        run_time += parse_timedelta(offset)
 
     app_name = "scheduler_test_app"
-    msg = "asdfasdf"
-    with caplog.at_level(logging.DEBUG, logger=f"AppDaemon.{app_name}"):
-        async with ad.app_management.app_run_context(app_name, start=start, interval=interval, msg=msg):
-            await asyncio.sleep(run_time.total_seconds())
+    test_id = str(uuid.uuid4())
+    app_args = dict(start=start, interval=interval, msg=test_id)
+    async with run_app_for_time(app_name, run_time=run_time.total_seconds(), **app_args) as (ad, caplog):
+        check_interval_partial = partial(check_interval, caplog, f"kwargs: {{'msg': '{test_id}',")
 
-        check_interval_partial = partial(check_interval, caplog, msg)
+        if start.startswith("now -"):
+            check_interval_partial(n, interval)
+        else:
+            check_interval_partial(n + 1, interval)
 
-        match (start, interval):
-            case ("now", _):
-                # TODO: Enable this test
-                # check_interval_partial(n + 1, interval)
-                check_interval_partial(n, interval)
-            case _:
-                check_interval_partial(n, interval)
-
-        diffs = utils.time_diffs(utils.filter_caplog(caplog, msg))
-        logger.debug(diffs)
+        # diffs = utils.time_diffs(utils.filter_caplog(caplog, test_id))
+        # logger.debug(diffs)

@@ -522,8 +522,7 @@ class State:
         Fires the ``__AD_ENTITY_REMOVED`` event in a new task
         """
 
-        if entity_id in self.state[namespace]:
-            self.state[namespace].pop(entity_id)
+        if self.state[namespace].pop(entity_id, False):
             data = {"event_type": "__AD_ENTITY_REMOVED", "data": {"entity_id": entity_id}}
             self.AD.loop.create_task(self.AD.events.process_event(namespace, data))
 
