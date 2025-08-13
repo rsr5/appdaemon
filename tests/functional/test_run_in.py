@@ -13,7 +13,7 @@ ERROR_MARGIN = 0.005  # Allowable error margin for run_in timing
 @pytest.mark.asyncio(loop_scope="session")
 async def test_run_in_delay(run_app_for_time, delay):
     run_time = parse_timedelta(delay).total_seconds()
-    run_time += (ERROR_MARGIN * 10)
+    run_time += ERROR_MARGIN * 10
     test_id = str(uuid.uuid4())  # Generate a unique test ID for each run
     async with run_app_for_time("test_run_in", run_time=run_time, delay=delay, test_id=test_id) as (ad, caplog):
         assert "TestSchedulerRunIn initialized" in caplog.text
@@ -31,10 +31,7 @@ async def test_run_in_delay(run_app_for_time, delay):
                 ) if tid == test_id:
                     elapsed_time = callback_ts - created_ts
                     error = elapsed_time - parse_timedelta(delay).total_seconds()
-                    logger.info(
-                        f"Scheduler run_in succeeded with delay {format_timedelta(delay)}, "
-                        f"elapsed time {format_timedelta(elapsed_time)}, "
-                        f"error {format_timedelta(error)}")
+                    logger.info(f"Scheduler run_in succeeded with delay {format_timedelta(delay)}, " f"elapsed time {format_timedelta(elapsed_time)}, " f"error {format_timedelta(error)}")
                     assert error <= ERROR_MARGIN
                     break
         else:

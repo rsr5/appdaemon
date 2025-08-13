@@ -5,6 +5,7 @@ from appdaemon.appdaemon import AppDaemon
 
 logger = logging.getLogger("AppDaemon._test")
 
+
 @pytest.mark.ci
 @pytest.mark.functional
 @pytest.mark.parametrize("app_name", ["hello_world", "another_app"])

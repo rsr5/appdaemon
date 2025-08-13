@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 
@@ -7,10 +6,12 @@ from appdaemon.appdaemon import AppDaemon
 
 logger = logging.getLogger("AppDaemon._test")
 
+
 @pytest.mark.ci
 @pytest.mark.functional
 @pytest.mark.parametrize(
-    "mode", [
+    "mode",
+    [
         "BASIC",
         # "ATTRIBUTES",
         "LISTEN_KWARGS",
@@ -18,7 +19,7 @@ logger = logging.getLogger("AppDaemon._test")
         "NEW_STATE_FILTER_NEGATIVE",
         "NEW_ATTRIBUTE_FILTER_POSITIVE",
         "NEW_ATTRIBUTE_FILTER_NEGATIVE",
-    ]
+    ],
 )
 @pytest.mark.asyncio(loop_scope="session")
 async def test_state_callback(ad: AppDaemon, caplog: pytest.LogCaptureFixture, mode: str) -> None:

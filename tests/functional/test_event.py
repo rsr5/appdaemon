@@ -39,10 +39,7 @@ class TestEventCallback:
         """
         listen_id = str(uuid.uuid4())
         fire_id = str(uuid.uuid4())
-        app_args = {
-            "listen_kwargs": {"test_kwarg": listen_id},
-            "fire_kwargs": {"test_fire_kwarg": fire_id}
-        }
+        app_args = {"listen_kwargs": {"test_kwarg": listen_id}, "fire_kwargs": {"test_fire_kwarg": fire_id}}
         async with run_app_for_time(self.app_name, **app_args) as (ad, caplog):
             match ad.app_management.objects.get(self.app_name):
                 case ManagedObject(object=app_obj):
@@ -54,7 +51,7 @@ class TestEventCallback:
                     ad.loop.call_soon(app_obj.test_fire)
 
                     # We expect it to timeout
-                    with pytest.raises(TimeoutError):
+                    with pytest.raises(asyncio.TimeoutError):
                         await asyncio.wait_for(app_obj.execute_event.wait(), timeout=0.5)
                 case _:
                     raise ValueError("App object not found in app management")
@@ -64,10 +61,7 @@ class TestEventCallback:
                 match record:
                     case logging.LogRecord(
                         msg="Event callback data: %s",
-                        args={
-                            "__thread_id": thread_id,
-                            "test_fire_kwarg": fired_kwarg
-                        },
+                        args={"__thread_id": thread_id, "test_fire_kwarg": fired_kwarg},
                     ):
                         assert thread_id == "thread-0"
                         assert fired_kwarg == fire_id
@@ -113,7 +107,7 @@ class TestEventCallback:
                         await wait_coro
                     else:
                         # We expect the timeout because the namespaces don't match
-                        with pytest.raises(TimeoutError):
+                        with pytest.raises(asyncio.TimeoutError):
                             await wait_coro
                 case _:
                     raise ValueError("App object not found in app management")
@@ -152,7 +146,7 @@ class TestEventCallback:
                         await wait_coro
                     else:
                         # We expect the timeout because the namespaces don't match
-                        with pytest.raises(TimeoutError):
+                        with pytest.raises(asyncio.TimeoutError):
                             await wait_coro
                 case _:
                     raise ValueError("App object not found in app management")
@@ -180,7 +174,7 @@ class TestEventCallback:
                     ad.loop.call_soon(app_obj.test_fire)
 
                     # We expect it to timeout
-                    with pytest.raises(TimeoutError):
+                    with pytest.raises(asyncio.TimeoutError):
                         await asyncio.wait_for(app_obj.execute_event.wait(), timeout=0.5)
                 case _:
                     raise ValueError("App object not found in app management")
