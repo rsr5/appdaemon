@@ -3395,8 +3395,12 @@ class ADAPI:
             >>> self.run_at_sunset(self.sun, random_start = -60*60, random_end = 30*60)
 
         """
-        sunset = await self.AD.sched.next_sunset()
+        now = await self.AD.sched.get_now()
+        sunset = await self.AD.sched.todays_sunset()
         td = utils.parse_timedelta(offset)
+        if sunset + td < now:
+            sunset = await self.AD.sched.next_sunset()
+
         self.logger.debug(f"Registering run_at_sunset at {sunset + td} with {args}, {kwargs}")
         return await self.AD.sched.insert_schedule(
             name=self.name,
@@ -3468,8 +3472,11 @@ class ADAPI:
             >>> self.run_at_sunrise(self.sun, random_start = -60*60, random_end = 30*60)
 
         """
-        sunrise = await self.AD.sched.sunrise(today=False, aware=True)
+        now = await self.AD.sched.get_now()
+        sunrise = await self.AD.sched.todays_sunrise()
         td = utils.parse_timedelta(offset)
+        if sunrise + td < now:
+            sunrise = await self.AD.sched.next_sunrise()
         self.logger.debug(f"Registering run_at_sunrise at {sunrise + td} with {args}, {kwargs}")
         return await self.AD.sched.insert_schedule(
             name=self.name,
