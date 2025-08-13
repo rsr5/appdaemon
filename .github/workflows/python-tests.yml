@@ -71,23 +71,4 @@ jobs:
 
     - name: Run tests
       # For example, using `pytest`
-      run: |
-        uv run pytest tests/unit
-        uv run pytest -m ci
-
-    # # https://github.com/actions/setup-python
-    # - name: Set up Python ${{ matrix.python-version }}
-    #   uses: actions/setup-python@v5
-    #   with:
-    #     python-version: ${{ matrix.python-version }}
-    #     cache: 'pip' # caching pip dependencies
-    #     # Manually set 'dev-requirements.txt' as the file to use for dependencies, since `requirements.txt` contains runtime dependencies.
-    #     cache-dependency-path: 'dev-requirements.txt'
-    # - name: Install dependencies
-    #   run: |
-    #     python -m pip install --upgrade pip
-    #     pip install -r dev-requirements.txt
-    # - name: Test with pytest
-    #   run: |
-    #     python -m pytest tests/unit
-    #     python -m pytest -m ci
+      run: uv run pytest -m ci
