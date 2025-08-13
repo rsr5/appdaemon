@@ -3,12 +3,13 @@ from copy import deepcopy
 from dataclasses import InitVar, dataclass, field
 from functools import partial
 from pathlib import Path
-from typing import Iterable, Self
+from typing import Iterable
 
+from . import utils
 from .dependency import find_all_dependents, get_dependency_graph, get_full_module_name, reverse_graph, topo_sort
 from .models.config.app import AllAppConfig, BaseApp
 from .models.internal.file_check import FileCheck
-from . import utils
+
 
 @dataclass
 class Dependencies(ABC):
@@ -157,7 +158,7 @@ class DependencyManager:
         app_dir: Path,
         exclude: str | Iterable[str] | None = None,
         config_suffix: str = ".yaml",
-    ) -> Self:
+    ) -> "DependencyManager":
         """Creates a new instance of the dependency manager from the given app directory"""
         match exclude:
             case str():
