@@ -1,11 +1,11 @@
 """Module to handle utility functions within AppDaemon."""
 
 import asyncio
-from collections.abc import AsyncGenerator
-from dataclasses import dataclass, field
 import datetime
 import traceback
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
 from datetime import timedelta
 from logging import Logger
 from time import perf_counter
@@ -55,9 +55,12 @@ class Utility:
     """
 
     logger: Logger
-    loop_task: asyncio.Task
-    app_update_event: asyncio.Event
     name: str = "_utility"
+    loop_task: asyncio.Task
+    """The task for the :meth:`~.utility_loop.Utility.loop` method"""
+    app_update_event: asyncio.Event
+    """Event that gets set and cleared :meth:`~.utility_loop.Utility._loop_iteration_context` method, which wraps each
+    iteration of the while loop in :meth:`~.utility_loop.Utility.loop`"""
 
     def __init__(self, ad: "AppDaemon"):
         """Constructor.
@@ -71,7 +74,8 @@ class Utility:
 
         self.app_update_event = asyncio.Event()
 
-    def start(self):
+    def start(self) -> None:
+        """Starts the utility loop by creating the async task for the :meth:`~.utility_loop.Utility.loop` method."""
         self.loop_task = self.AD.loop.create_task(self.loop(), name="utility_loop")
         self.loop_task.add_done_callback(self._loop_final_status)
 
@@ -140,12 +144,11 @@ class Utility:
     async def _init_loop(self):
         """Initialize the utility loop components.
 
-        Process:
-        - Sets up stats
-        - Starts the web server if configured
-        - Waits for all plugins to initialize
-        - Registers services
-        - Runs check_app_updates with UpdateMode.INIT if apps are enabled
+        * Sets up stats
+        * Starts the web server if configured
+        * Waits for all plugins to initialize
+        * Registers services
+        * Runs check_app_updates with UpdateMode.INIT if apps are enabled
         """
         self.logger.debug("Starting utility loop")
 
@@ -167,10 +170,14 @@ class Utility:
         await self._register_services()
 
     async def loop(self):
-        """The main utility loop.
+        """Run the utility loop, which handles the following:
 
-        Loops until stop() is called, checks for file changes, overdue threads, thread starvation,
-        and schedules regular state refreshes.
+        * Checking for file changes to update/reload apps if necessary with :py:meth:`~.app_management.AppManagement.check_app_updates`
+        * Checking for thread starvation
+        * Checking for overdue threads
+        * Save hybrid namespaces
+        * Gives the plugins a chance to run their own utility functions
+        * Updates performance entities
         """
 
         await self._init_loop()
@@ -223,13 +230,14 @@ class Utility:
 
     @asynccontextmanager
     async def _loop_iteration_context(self) -> AsyncGenerator[LoopTiming]:
-        """Context manager for running the utility loop.
+        """Async context manager for running the utility :meth:`~.utility_loop.Utility.loop`.
 
-        Notes:
-        - Contains logic for warnings
+        * Contains logic for warnings
+
             - Exceptions are logged with tracebacks, but not raised
             - Warnings are logged if the utility loop takes too long
-        - Handles the timing of the utility loop
+
+        * Handles the timing of the utility loop
 
         Yields:
             LoopTiming: Timing object for recording operation timestamps.
@@ -280,6 +288,9 @@ class Utility:
     async def sleep(self, delay: float, *, timeout_ok: bool):
         """Sleep for a specified number of seconds.
 
+        The purpose of this method is to make sleeping easily and quickly interruptible. This is done by using
+        :py:func:`asyncio.wait_for` to wait for the stop event to be set, and (usually) ignoring the timeout.
+
         Args:
             seconds (float): Number of seconds to sleep.
             timeout_ok (bool): If True, does not raise TimeoutError if the sleep is interrupted by stop_event.
@@ -287,6 +298,6 @@ class Utility:
         if not self.AD.stopping:
             try:
                 await asyncio.wait_for(self.AD.stop_event.wait(), timeout=delay)
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 if not timeout_ok:
                     raise

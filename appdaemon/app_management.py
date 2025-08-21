@@ -164,8 +164,15 @@ class AppManagement:
         return self.running_apps | self.loaded_globals
 
     def start(self) -> None:
-        self.logger.debug("Starting the app management subsystem")
+        """Start the app management subsystem, which creates async tasks to
+
+        * Initialize admin entities
+        * Call :meth:`~.check_app_updates`
+        * Fire an ``appd_started`` event in the ``global`` namespace.
+
+        """
         if self.AD.apps_enabled:
+            self.logger.debug("Starting the app management subsystem")
             self.AD.loop.create_task(self.init_admin_entities())
 
             task = self.AD.loop.create_task(
@@ -180,6 +187,10 @@ class AppManagement:
             )
 
     async def stop(self) -> None:
+        """Stop the app management subsystem and all the running apps.
+
+        * Calls :py:meth:`~.check_app_updates` with ``UpdateMode.TERMINATE``
+        """
         if self.AD.apps_enabled:
             self.logger.debug("Stopping the app management subsystem")
             await self.check_app_updates(mode=UpdateMode.TERMINATE)
@@ -841,19 +852,31 @@ class AppManagement:
 
         Called as part of :meth:`.utility_loop.Utility.loop`
 
-        Update Modes:
-        - NORMAL: Checks for changes and reloads apps as necessary.
-        - INIT: Used during startup trigger processing the import paths and initializing the dependency manager.
-        - TERMINATE: Adds all apps to the set to be terminated.
-        - RELOAD_APPS: Adds all apps and the modules they depend on to the respective reload sets. Used by the app
-            reload service.
-        - PLUGIN_FAILED: Stops all the apps of a plugin that failed.
-        - PLUGIN_RESTART: Restarts all the apps of a plugin that has started again.
-        - TESTING: Testing mode, used during testing to load apps without starting them.
+        NORMAL
+            Checks for changes and reloads apps as necessary.
+
+        INIT
+            Used during startup trigger processing the import paths and initializing the dependency manager.
+
+        TERMINATE
+            Adds all apps to the set to be terminated.
+
+        RELOAD_APPS
+            Adds all apps and the modules they depend on to the respective reload sets. Used by the app reload service.
+
+        PLUGIN_FAILED
+            Stops all the apps of a plugin that failed.
+
+        PLUGIN_RESTART
+            Restarts all the apps of a plugin that has started again.
+
+        TESTING
+            Testing mode, used during testing to load apps without starting them.
 
         Args:
             plugin_ns (str, optional): Namespace of a plugin to restart, if necessary. Defaults to None.
-            mode (UpdateMode, optional): Defaults to UpdateMode.NORMAL.
+            mode (UpdateMode, optional): Defaults to ``UpdateMode.NORMAL``.
+            update_actions (UpdateActions, optional): The update actions to perform. Defaults to None.
         """
         if not self.AD.apps_enabled:
             return

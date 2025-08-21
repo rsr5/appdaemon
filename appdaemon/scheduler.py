@@ -33,6 +33,8 @@ ELEVATION_REGEX = re.compile(r"^(?P<N>\d+(?:\.\d+)?)\s+deg\s+(?P<dir>rising|sett
 
 
 class Scheduler:
+    """AppDaemon subsystem to manage internal scheduling, calculate the times of sun-based events, and parse datetime
+    strings."""
     AD: "AppDaemon"
     logger: Logger
     error: Logger
@@ -42,7 +44,6 @@ class Scheduler:
 
     name: str = "_scheduler"
     active_event: asyncio.Event
-    stopping: bool = False
     loop_task: asyncio.Task[None]
 
     def __init__(self, ad: "AppDaemon"):
@@ -68,7 +69,10 @@ class Scheduler:
         # Setup sun
         self.init_sun()
 
-    def start(self):
+    def start(self) -> None:
+        """Starts the scheduler, which creates the the async task for :py:meth:`~appdaemon.scheduler.Scheduler.loop` and
+        adds some cleanup callbacks using the Python-native :py:meth:`~asyncio.Task.add_done_callback`.
+        """
         def _set_inactive(task: asyncio.Task[None]) -> None:
             """
             Callback to set the scheduler as inactive when the loop task is done.
@@ -92,13 +96,14 @@ class Scheduler:
         self.loop_task.add_done_callback(_set_inactive)
         self.loop_task.add_done_callback(_shutdown_message)
 
-    def stop(self):
+    def stop(self) -> None:
+        """Stops the scheduler by cancelling the task for :py:meth:`~appdaemon.scheduler.Scheduler.loop`"""
         self.loop_task.cancel()
         self.logger.debug("Scheduler loop task was cancelled")
 
     @property
     def active(self) -> bool:
-        """Return whether the scheduler is active."""
+        """Whether the core scheduler loop is running."""
         return self.active_event.is_set()
 
     @active.setter
@@ -110,7 +115,7 @@ class Scheduler:
 
     @property
     def realtime(self) -> bool:
-        """Return whether the scheduler is running in real time."""
+        """Whether the scheduler is running in real time (timewarp == 1)."""
         return self.AD.real_time
 
     async def _init_loop(self):
@@ -533,6 +538,7 @@ class Scheduler:
         return limit
 
     async def loop(self):  # noqa: C901
+        """Core scheduler loop, which processes scheduled callbacks and sleeping between them."""
         self.logger.debug("Starting scheduler loop()")
         await self._init_loop()
 

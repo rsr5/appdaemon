@@ -381,6 +381,14 @@ class AppDaemon:
         return self.config.utility_delay
 
     def start(self) -> None:
+        """Start AppDaemon, which also starts all the component subsystems like the scheduler, etc.
+
+        - :meth:`ThreadAsync <appdaemon.thread_async.ThreadAsync.start>`
+        - :meth:`Scheduler <appdaemon.scheduler.Scheduler.start>`
+        - :meth:`Utility <appdaemon.utility_loop.Utility.start>`
+        - :meth:`AppManagement <appdaemon.app_management.AppManagement.start>`
+
+        """
         self.logger.debug("Starting AppDaemon")
         self.thread_async.start()
         self.sched.start()
@@ -390,15 +398,15 @@ class AppDaemon:
             self.app_management.start()
 
     async def stop(self) -> None:
-        """Called by the signal handler to shut down AppDaemon.
+        """Stop AppDaemon by calling the stop method of the subsystems.
 
-        Also stops (in order):
+        This does not stop the event loop, but waits for all the existings tasks to finish before returning, which has a 3s timeout.
 
-        - :class:`~.app_management.AppManagement`
-        - :class:`~.thread_async.ThreadAsync`
-        - :class:`~.plugin_management.Plugins`
-        - :class:`~.scheduler.Scheduler`
-        - :class:`~.state.State`
+        - :meth:`AppManagement <appdaemon.app_management.AppManagement.stop>`
+        - :meth:`ThreadAsync <appdaemon.thread_async.ThreadAsync.stop>`
+        - :meth:`Plugins <appdaemon.plugin_management.Plugins.stop>`
+        - :meth:`Scheduler <appdaemon.scheduler.Scheduler.stop>`
+        - :meth:`State <appdaemon.state.State.stop>`
         """
         self.logger.info("Stopping AppDaemon")
         self.stopping = True

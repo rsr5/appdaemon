@@ -17,7 +17,7 @@ import logging.config
 import os
 import signal
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from contextlib import ExitStack, contextmanager
 from logging import Logger
 from pathlib import Path
@@ -271,8 +271,9 @@ def parse_config(args: argparse.Namespace, stop_function: Callable) -> MainConfi
 
 
 class ADMain:
-    """
-    Class to encapsulate all main() functionality.
+    """Main application class for AppDaemon, which contains the parsed CLI arguments, top-level config model, and the async event loop.
+
+    When this class is instantiated, it creates a :py:class:`~appdaemon.dependency_manager.DependencyManager` from the app directory. This causes
     """
 
     AD: AppDaemon
@@ -286,13 +287,13 @@ class ADMain:
     _cleanup_stack: ExitStack
 
     model: MainConfig
+    """Pydantic model of the top-level object for the appdaemon.yaml file."""
     args: argparse.Namespace
 
     stop_time: float = 0.0
     """Stores the value of perf_counter() when self.stop is first called."""
 
-    def __init__(self, args: argparse.Namespace):
-        """Constructor."""
+    def __init__(self, args: argparse.Namespace) -> None:
         self.args = args
         self.http_object = None
         self._cleanup_stack = ExitStack()
@@ -302,7 +303,7 @@ class ADMain:
             self.setup_logging()
             utils.deprecation_warnings(self.model.appdaemon, self.logger)
 
-            # # Create the dependency manager here so that all the initial file reading happens in here
+            # Create the dependency manager here so that all the initial file reading happens in here
             self.dep_manager = DependencyManager.from_app_directory(
                 self.model.appdaemon.app_dir,
                 exclude=self.model.appdaemon.exclude_dirs,
@@ -325,10 +326,10 @@ class ADMain:
                 pidfile_path = Path(self.args.pidfile).resolve()
                 self.logger.info("Using pidfile: %s", pidfile_path)
                 pid_file = pid.PidFile(pidfile_path.name, pidfile_path.parent)
-                self.enter_context(pid_file)
+                self._cleanup_stack.enter_context(pid_file)
 
-            self.enter_context(self.loop_context())
-            self.enter_context(self.signal_handlers(self.loop))
+            self._cleanup_stack.enter_context(self.loop_context())
+            self._cleanup_stack.enter_context(self.signal_handlers(self.loop))
             return self
         except Exception as e:
             ade.user_exception_block(self.logger, e, self.model.appdaemon.app_dir, header="ADMain __enter__")
@@ -341,10 +342,6 @@ class ADMain:
     def add_cleanup(self, cleanup_func, *args, **kwargs):
         """Add a cleanup function to be called on exit."""
         self._cleanup_stack.callback(cleanup_func, *args, **kwargs)
-
-    def enter_context(self, context_manager):
-        """Enter a context manager and ensure it's cleaned up on exit."""
-        return self._cleanup_stack.enter_context(context_manager)
 
     def handle_sig(self, signum: int):
         """Function to handle signals.
@@ -366,13 +363,13 @@ class ADMain:
             case (signal.SIGINT | signal.SIGTERM) as sig:
                 self.logger.info(f"Received signal: {signal.Signals(sig).name}")
                 self.stop()
-            # case signal.SIGWINCH:
-            #     ... # disregard window changes
-            # case _:
-            #     self.logger.error(f'Unhandled signal: {signal.Signals(signum).name}')
 
     @contextmanager
-    def loop_context(self):
+    def loop_context(self) -> Generator[asyncio.AbstractEventLoop]:
+        """Context manager that creates a new async event loop and cleans it up afterwards.
+
+        Includes the logic to install uvloop if it's enabled.
+        """
         # uvloop needs to be installed outside of self.run_context
         if self.model.appdaemon.uvloop and uvloop is not None:
             uvloop.install()
@@ -410,15 +407,18 @@ class ADMain:
                     pass
 
     def stop(self):
-        """Called by the signal handler to shut AD down."""
+        """Stop AppDaemon and stop the event loop afterwards."""
         self.stop_time = perf_counter()
         task = self.loop.create_task(self.AD.stop())
         task.add_done_callback(lambda _: self.loop.stop())
 
     def run(self) -> None:
-        """Start AppDaemon up after initial argument parsing."""
-        self.enter_context(self.startup_text())
-        self.enter_context(self.run_context(self.loop))
+        """Start AppDaemon up after initial argument parsing.
+
+        This uses :py:meth:`~asyncio.loop.run_forever` on the event loop to run it indefinitely.
+        """
+        self._cleanup_stack.enter_context(self.startup_text())
+        self._cleanup_stack.enter_context(self.run_context(self.loop))
         self.AD.start()
         self.logger.debug("Running async event loop forever")
         self.loop.run_forever()
@@ -495,17 +495,22 @@ class ADMain:
             self.logger.info("AppDaemon main() stopped gracefully in %s", utils.format_timedelta(stop_duration))
 
 
-def main():
+def main() -> None:
+    """Top-level entrypoint for AppDaemon
+
+    Parses the CLI arguments, configures logging, and runs the AppDaemon.
+    """
     args = parse_arguments()
 
+    CLI_LOG_CFG = PRE_LOGGING.copy()
+
     if args.debug is not None:
-        CLI_LOG_CFG = PRE_LOGGING.copy()
         CLI_LOG_CFG["root"]["level"] = args.debug
-        logging.config.dictConfig(CLI_LOG_CFG)
         logger.debug("Configured logging level from command line argument")
 
+    logging.config.dictConfig(CLI_LOG_CFG)
+
     with ADMain(args) as admain:
-        # raise ade.StartupAbortedException()
         admain.run()
 
 
