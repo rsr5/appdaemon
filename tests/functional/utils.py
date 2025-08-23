@@ -1,8 +1,14 @@
+from collections.abc import Callable
+from contextlib import AbstractAsyncContextManager
 from datetime import timedelta
 
 import pytest
+from appdaemon.appdaemon import AppDaemon
 
 from tests.utils import assert_timedelta, filter_caplog
+
+AsyncTempTest = Callable[..., AbstractAsyncContextManager[tuple[AppDaemon, pytest.LogCaptureFixture]]]
+
 
 
 def check_interval(

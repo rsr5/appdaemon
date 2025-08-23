@@ -18,10 +18,10 @@ class TestEventCallback(ADAPI):
         fire_kwargs: The keyword arguments to pass to the fire_event method
     """
     def initialize(self):
-        self.log(f"{self.__class__.__name__} initialized")
+        self.execute_event = asyncio.Event()
         self.listen_event(self.event_callback, self.event, **self.listen_kwargs)
         self.run_in(self.test_fire, delay=self.args.get("delay", 0.1), **self.fire_kwargs)
-        self.execute_event = asyncio.Event()
+        self.log(f"{self.__class__.__name__} initialized")
 
     @property
     def event(self) -> str:

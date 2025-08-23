@@ -1,7 +1,12 @@
 from datetime import timedelta
 
+import pytest
 from appdaemon import utils
 
+pytestmark = [
+    pytest.mark.ci,
+    pytest.mark.unit,
+]
 
 def test_parse_timedelta() -> None:
     """Test the parsing of timedelta strings."""

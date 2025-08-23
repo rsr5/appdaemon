@@ -1,10 +1,16 @@
 from datetime import date, datetime, timedelta
 from functools import partial
 
+import pytest
 from appdaemon import utils
 from astral import SunDirection
 from astral.location import Location
 from pytz import BaseTzInfo
+
+pytestmark = [
+    pytest.mark.ci,
+    pytest.mark.unit,
+]
 
 
 def test_time_parse(default_now: datetime, parser: partial[datetime]) -> None:

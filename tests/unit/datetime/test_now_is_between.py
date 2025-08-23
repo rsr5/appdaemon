@@ -1,9 +1,14 @@
 from datetime import datetime, time
 from functools import partial
 
+import pytest
 from appdaemon import utils
 from astral.location import Location
 
+pytestmark = [
+    pytest.mark.ci,
+    pytest.mark.unit,
+]
 
 def test_between_overnight(location: Location, early_now: datetime, default_now: datetime, late_now: datetime) -> None:
     sun_check = partial(utils.now_is_between, start_time="sunset", end_time="sunrise", location=location)

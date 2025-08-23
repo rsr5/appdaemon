@@ -56,7 +56,7 @@ to run in the correct order, which is the reverse order that the contexts were e
 Contexts
 ~~~~~~~~
 
-The various context managers that get entered as AppDaemon is started include the logic for these steps. Some of these
+The various context managers that get entered as AppDaemon is started include the logic for following steps. Some of these
 are entered as part of the ``ADMain`` context, and some are entered in the :py:class:`~appdaemon.__main__.ADMain.run`
 method. All of them are exited in reverse order as the :py:class:`~contextlib.ExitStack` is closed, which happens when
 ``ADMain`` context is exited.

@@ -10,8 +10,6 @@ from astral import LocationInfo
 from astral.location import Location
 from pytz import BaseTzInfo, timezone
 
-pytestmark = pytest.mark.ci
-
 
 @pytest.fixture
 def tz(location: Location) -> BaseTzInfo:

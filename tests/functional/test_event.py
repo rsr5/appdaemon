@@ -1,21 +1,18 @@
 import asyncio
 import logging
 import uuid
-from collections.abc import Callable
-from contextlib import AbstractAsyncContextManager
 
 import pytest
 from appdaemon.app_management import ManagedObject
-from appdaemon.appdaemon import AppDaemon
+
+from .utils import AsyncTempTest
 
 logger = logging.getLogger("AppDaemon._test")
-
-AsyncTempTest = Callable[..., AbstractAsyncContextManager[tuple[AppDaemon, pytest.LogCaptureFixture]]]
-
 
 @pytest.mark.ci
 @pytest.mark.functional
 class TestEventCallback:
+    """Class to group the various tests for event callbacks."""
     app_name: str = "test_event_app"
 
     @pytest.mark.asyncio(loop_scope="session")
@@ -25,17 +22,17 @@ class TestEventCallback:
         Process:
             - Unique values are generated for the event and its kwargs
             - The run_app_for_time context manager is used to run the test_event_app temporarily
-                - Event test app listens for an event and fires the same event shortly after
-            - Wait for the async execute_event to be set by the event callback in the app
-            - Clear the event
+            - Event test app listens for an event and fires the same event shortly after
+            - Wait for :py:class:`~asyncio.Event` to be set by the callback in the app
+            - Clear the :py:class:`~asyncio.Event`
             - Set the app arg to another event name so it will no longer match the event that was initially listened for
             - Fire the new event
-            - Wait for the async execute_event again, expecting a timeout.
+            - Wait for the :py:class:`~asyncio.Event` again, expecting a timeout.
 
         Coverage:
-            - listen_event results in the callback being called for corresponding events
-            - keyword arguments provided in listen_event are passed to the callback in ``kwargs``
-            - keyword arguments provided in the fire_event call are passed to the callback in ``data``
+            - ``listen_event`` results in the callback being called for corresponding events
+            - keyword arguments provided in ``listen_event`` are passed to the callback in ``kwargs``
+            - keyword arguments provided in the ``fire_event`` call are passed to the callback in ``data``
         """
         listen_id = str(uuid.uuid4())
         fire_id = str(uuid.uuid4())
@@ -73,31 +70,32 @@ class TestEventCallback:
     async def test_event_callback_filtered(self, run_app_for_time: AsyncTempTest, sign: bool) -> None:
         """Test the event callback filtering based on keyword arguments.
 
-        If the event data has a key that matches one of the kwargs provided in the listen_event call, then the values
+        If the event data has a key that matches one of the kwargs provided in the ``listen_event`` call, then the values
         for those keys must also match for the callback to be executed.
 
+        Process:
+            - A unique value is generated for firing the event. If the callback is supposed to fire (positive case),
+              then the same value is used for listening to the event. Otherwise (negative case), a different, unique
+              value is used to listen for the event, which will prevent the callback from executing.
+            - The unique fire and listen values are passed to the app as args.
+            - The ``test_event_app`` app is run until a python :py:class:`~asyncio.Event` is set.
+            - The :py:class:`~asyncio.Event` is created when the app initializes.
+            - The app listens for the event and then fires it after a short delay, using the relevant kwargs for each.
+            - If the callback is executed, :py:class:`~asyncio.Event` is set, and the unique values are printed in the logs.
+
         Coverage:
-            - Event filtering based on kwargs provided to listen_event
-                - Positive case: There is a matching key between the listen kwargs and the event data and the values
-                    match
-                - Negative case: There is a matching key between the listen kwargs and the event data but the values
-                    do not match
+            - Positive
+                There is a matching key between the listen kwargs and the event data and the values match, so the callback is executed.
+            - Negative
+                There is a matching key between the listen kwargs and the event data but the values do not match, so the callback is not executed.
         """
-        listen_id = str(uuid.uuid4())
         fire_id = str(uuid.uuid4())
+        listen_id = fire_id if sign else str(uuid.uuid4())
         test_kwarg_name = "test_kwarg"
-        if sign:
-            # The kwarg name and value must match for the callback to work.
-            app_args = {
-                "listen_kwargs": {test_kwarg_name: listen_id},
-                "fire_kwargs": {test_kwarg_name: listen_id},
-            }
-        else:
-            # The kwarg name must match, but the value must be different for the callback to be filtered.
-            app_args = {
-                "listen_kwargs": {test_kwarg_name: listen_id},
-                "fire_kwargs": {test_kwarg_name: fire_id},
-            }
+        app_args = {
+            "listen_kwargs": {test_kwarg_name: listen_id},
+            "fire_kwargs": {test_kwarg_name: fire_id},
+        }
 
         async with run_app_for_time(self.app_name, **app_args) as (ad, caplog):
             match ad.app_management.objects.get(self.app_name):
@@ -122,10 +120,15 @@ class TestEventCallback:
 
         Event callbacks should only be fired for events in the correct namespace.
 
+        Process:
+            - The event test app is given namespaces to listen and fire the event in.
+            - The app listens for the event and then fires it after a short delay, using the relevant namespaces for each.
+
         Coverage:
-            - Event callbacks should only be fired for events in the correct namespace.
-                - Positive case: The listen and fire namespaces match
-                - Negative case: The listen and fire namespaces do not match
+            - Positive
+                The listen and fire namespaces match, so the callback is executed.
+            - Negative
+                The listen and fire namespaces do not match, so the callback is not executed.
         """
         namespace = "test"
         if sign:
@@ -159,6 +162,10 @@ class TestEventCallback:
         """Test the oneshot functionality of the event callback.
 
         Event callbacks that are registered with the oneshot flag should only be fired once.
+
+        Process:
+            - Listen for an event with the oneshot flag set.
+            - Fire the event twice, and ensure that the callback is only fired once.
 
         Coverage:
             - Event callbacks that are registered with the oneshot flag should only be fired once.

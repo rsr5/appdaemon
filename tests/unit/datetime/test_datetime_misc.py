@@ -1,7 +1,13 @@
 from datetime import datetime, timedelta
 
+import pytest
 from appdaemon import utils
 from pytz import BaseTzInfo
+
+pytestmark = [
+    pytest.mark.ci,
+    pytest.mark.unit,
+]
 
 
 def test_resolve_offset() -> None:
