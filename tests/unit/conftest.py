@@ -5,10 +5,11 @@ from datetime import date, datetime, time
 from functools import partial
 
 import pytest
-from appdaemon import utils
 from astral import LocationInfo
 from astral.location import Location
 from pytz import BaseTzInfo, timezone
+
+from appdaemon import utils
 
 
 @pytest.fixture

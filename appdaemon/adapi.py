@@ -14,8 +14,9 @@ from logging import Logger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
 
-from appdaemon import dependency, utils
+from appdaemon import dependency
 from appdaemon import exceptions as ade
+from appdaemon import utils
 from appdaemon.appdaemon import AppDaemon
 from appdaemon.entity import Entity
 from appdaemon.events import EventCallback
@@ -2979,7 +2980,7 @@ class ADAPI:
                 _, offset = utils.parse_time_str(start_str, now=now, location=self.AD.sched.location)
                 func = functools.partial(func, *args, repeat=True, offset=offset)
             case _:
-                start = await self.AD.sched.parse_datetime(start)
+                start = await self.AD.sched.parse_datetime(start, aware=True)
                 func = functools.partial(
                     self.AD.sched.insert_schedule,
                     name=self.name,
@@ -3069,18 +3070,19 @@ class ADAPI:
 
                 now = await self.get_now() # type: ignore
                 _, offset = utils.parse_time_str(start_str, now=now, location=self.AD.sched.location)
-                func = functools.partial(func, *args, repeat=True, offset=offset)
+                func = functools.partial(func, callback, *args, repeat=True, offset=offset)
             case _:
                 func = functools.partial(
                     self.run_every,
-                    start=start,
-                    interval=timedelta(days=1).total_seconds()
+                    callback,
+                    start,
+                    timedelta(days=1).total_seconds(),
+                    *args,
                 )  # fmt: skip
 
+        # Add additional kwargs here
         func = functools.partial(
             func,
-            callback=callback,
-            *args,
             random_start=random_start,
             random_end=random_end,
             pin=pin,

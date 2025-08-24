@@ -22,7 +22,8 @@ from functools import wraps
 from logging import Logger
 from pathlib import Path
 from time import perf_counter
-from typing import TYPE_CHECKING, Any, Callable, Coroutine, Literal, ParamSpec, Protocol, TypeVar
+from typing import (TYPE_CHECKING, Any, Callable, Coroutine, Literal,
+                    ParamSpec, Protocol, TypeVar)
 
 import dateutil.parser
 import pytz
@@ -34,10 +35,8 @@ from astral.location import Location
 from pydantic import BaseModel, ValidationError
 from pytz import BaseTzInfo
 
-from appdaemon.version import (
-    __version__,  # noqa: F401
-    __version_comments__,  # noqa: F401
-)
+from appdaemon.version import __version__  # noqa: F401
+from appdaemon.version import __version_comments__  # noqa: F401
 
 from . import exceptions as ade
 
@@ -609,6 +608,7 @@ def parse_datetime(
             pass
         case time():
             result = datetime.combine(now.date(), result)
+            result += timedelta(days=days_offset)
         case _:
             raise TypeError(f"Unsupported result type: {result}")
 
@@ -637,6 +637,16 @@ def parse_datetime(
 
     return result
 
+
+def parse_offset(input_: str) -> timedelta:
+    if m := re.search(r"\s+(?P<sign>[+-])\s+", input_):
+        offset = parse_timedelta(input_[m.span()[1]:])
+        match m.group("sign"):
+            case "-":
+                offset *= -1
+            case "+":
+                pass
+    return offset
 
 def now_is_between(
     now: datetime,

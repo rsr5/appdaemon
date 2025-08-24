@@ -619,7 +619,8 @@ class Scheduler:
                             time_to_run = timestamp <= self.now
                             args = self.schedule.get(name, {}).get(uuid_, False)
                             if time_to_run and args:
-                                self.logger.debug("Firing scheduled callback %s for '%s'", args["callback"].func.__name__, name)
+                                func = utils.unwrapped(args["callback"])
+                                self.logger.debug("Firing scheduled callback %s for '%s'", func.__name__, name)
                                 await self.exec_schedule(name, args, uuid_)
                         case _:
                             raise ValueError(f"Unknown entry format: {entry}")

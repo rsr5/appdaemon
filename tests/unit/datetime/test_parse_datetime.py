@@ -1,16 +1,139 @@
+import itertools
+import re
 from datetime import date, datetime, timedelta
 from functools import partial
+from typing import Literal
 
 import pytest
-from appdaemon import utils
 from astral import SunDirection
 from astral.location import Location
 from pytz import BaseTzInfo
+
+from appdaemon import utils
 
 pytestmark = [
     pytest.mark.ci,
     pytest.mark.unit,
 ]
+
+hour_params = {
+    "input_": [f"{i:02}:00" for i in range(0, 24, 6)],
+    "aware": [True, False],
+    "today": [True, False]
+}
+hour_params = (tuple(hour_params.keys()), list(itertools.product(*hour_params.values())))
+
+
+offsets = [str(utils.parse_timedelta(t)) for t in [1, timedelta(minutes=30), timedelta(hours=1)]]
+src = {
+    "str_offset": offsets,
+    "sign": [True, False],
+    "today": [True, False],
+    "aware": [True, False],
+}
+sunrise_params = list(itertools.product(*src.values()))
+sunrise_params = (
+    (f"sunrise {'+' if sign else '-'} {offset}", today, aware)
+    for offset, sign, today, aware in sunrise_params
+)
+sunrise_params = (("input_", "today", "aware"), list(sunrise_params))
+
+offsets = [timedelta(seconds=1), timedelta(minutes=1), timedelta(hours=1.5)]
+offsets = [td.total_seconds() for td in offsets]
+offsets = [(n * s) for n, s in itertools.product(offsets, [1, -1])]
+offsets = sorted(offsets)
+
+sun_params = itertools.product(["sunrise", "sunset"], offsets)
+sun_params = {
+    "now_str": ["early", "midday", "late"],
+    "when": ["today", "next"],
+    "input_": [f'{type_} {'+' if str_offset > 0 else '-'} {utils.parse_timedelta(abs(str_offset))}' for type_, str_offset in sun_params],
+}
+
+class TestParseDatetime:
+    @pytest.mark.parametrize(*hour_params)
+    def test_parse_hour(
+        self,
+        input_: str,
+        aware: bool,
+        today: bool,
+        default_now: datetime,
+        parser: partial[datetime],
+    ) -> None:
+        result = parser(input_, aware=aware, today=today)
+        if default_now.time() > result.time():
+            if not today:
+                assert result.date() == (default_now + timedelta(days=1)).date()
+                return
+
+        assert result.date() == default_now.date()
+
+    @pytest.mark.parametrize(tuple(sun_params.keys()), itertools.product(*sun_params.values()))
+    def test_parse_sun_offsets(
+        self,
+        now_str: str,
+        input_: str,
+        when: Literal["today", "next"],
+        default_now: datetime,
+        location: Location,
+        parser: partial[datetime],
+    ) -> None:
+        today_sunrise = location.sunrise(date=default_now.date(), local=True)
+        assert today_sunrise.isoformat() == "2025-06-20T05:25:07.925165-04:00"
+
+        tomorrow_sunrise = location.sunrise(date=(default_now + timedelta(days=1)).date(), local=True)
+        assert tomorrow_sunrise.isoformat() == "2025-06-21T05:25:20.585440-04:00"
+
+        today_sunset = location.sunset(date=default_now.date(), local=True)
+        assert today_sunset.isoformat() == "2025-06-20T20:30:19.662056-04:00"
+
+        tomorrow_sunset = location.sunset(date=(default_now + timedelta(days=1)).date(), local=True)
+        assert tomorrow_sunset.isoformat() == "2025-06-21T20:30:31.933561-04:00"
+
+        match now_str:
+            case "early":
+                now = default_now.replace(hour=3)
+            case "midday":
+                now = default_now.replace(hour=12)
+            case "late":
+                now = default_now.replace(hour=23)
+
+        parser.keywords["now"] = now
+
+        if when == "today":
+            parser.keywords["today"] = True
+
+        result = parser(input_, location=location, aware=True)
+        assert result.tzinfo is not None
+
+        type_ = input_.split()[0]
+        offset = utils.parse_offset(input_)
+
+        match now_str, when, type_:
+            case (_, "today", "sunrise"):
+                assert result == (today_sunrise + offset)
+            case (_, "today", "sunset"):
+                assert result == (today_sunset + offset)
+
+            case ("early", _, "sunrise"):
+                assert result == (today_sunrise + offset)
+            case ("midday" | "late", _, "sunrise"):
+                assert result == (tomorrow_sunrise + offset)
+
+            case ("early" | "midday", _, "sunset"):
+                assert result == (today_sunset + offset)
+            case ("late", "next", "sunset"):
+                assert result == (tomorrow_sunset + offset)
+
+            case _:
+                # This makes sure all the cases get handled.
+                assert False
+
+        match when:
+            case "today":
+                assert result.date() == now.date()
+            case "next":
+                assert result > now
 
 
 def test_time_parse(default_now: datetime, parser: partial[datetime]) -> None:
@@ -209,4 +332,6 @@ def test_exact_sun_event(default_date: date, location: Location, tz: BaseTzInfo)
 
     today_sunset = location.sunset(date=default_date, local=True)
     next_sunset = parser("sunset", now=today_sunset)
+    assert next_sunset.date() != default_date, "Next sunset should be tomorrow"
+    assert next_sunset.date() != default_date, "Next sunset should be tomorrow"
     assert next_sunset.date() != default_date, "Next sunset should be tomorrow"

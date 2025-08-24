@@ -265,7 +265,7 @@ class Utility:
             if self.AD.real_time and timing.timedelta("total") > self.AD.max_utility_skew:
                 self.logger.warning(
                     "Excessive time spent in utility loop: %s, %s in check_app_updates(), %s in other",
-                    timing.get_time_strs()
+                    *timing.get_time_strs()
                 )
                 if self.AD.check_app_updates_profile:
                     self.logger.info("Profile information for Utility Loop")
