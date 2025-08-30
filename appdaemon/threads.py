@@ -13,6 +13,7 @@ from queue import Queue
 from random import randint
 from threading import Thread
 from typing import TYPE_CHECKING, Any, ClassVar
+
 import iso8601
 
 from . import exceptions as ade
@@ -194,10 +195,7 @@ class Threading:
         """
         match self.total_threads, self.pin_apps:
             case None, True:
-                self.total_threads = self.pin_threads = (
-                    self.AD.app_management.dependency_manager.app_deps.app_config.active_app_count
-                    or 1
-                )
+                self.total_threads = self.pin_threads = self.AD.app_management.dependency_manager.app_deps.app_config.active_app_count or 1
                 self.logger.info(
                     "Starting apps with %s worker threads. Apps will all be assigned threads and pinned to them.",
                     self.total_threads,
@@ -849,7 +847,7 @@ class Threading:
         state = await self.AD.state.get_state("_threading", "admin", f"app.{name}")
         if state in ["initializing"]:
             self.logger.warning("Incoming event while initializing - discarding")
-            # return
+            return
 
         unconstrained = True
         #
