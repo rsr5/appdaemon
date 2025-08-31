@@ -228,7 +228,9 @@ def resolve_time_str(
 
     Args:
         time_str (str): The time string to parse. Can be in various formats
-        now (datetime): The current datetime to use as a reference for parsing.
+        now (datetime, str): The current datetime to use as a reference for parsing. This is intended to represent the
+            datetime that the call is being made, which affects how times are resolved. Strings will be interpreted as
+            ISO 8601 datetime strings, which helps with testing.
         location (Location | None): Location used for sunrise/sunset parsing. Comes from the astral package
         days_offset (int): Number of days to offset from the current date for sunrise/sunset parsing. Defaults to 0.
 
@@ -306,14 +308,20 @@ def parse_datetime(
 
     Args:
         input_ (str | time | datetime): The input to parse. Can be a string, time, or datetime object.
-        now (datetime): The current datetime to use as a reference for parsing. This is intended to represent the
-            datetime that the call is being made, which affects how times are resolved.
+        now (datetime | str): The current datetime to use as a reference for parsing. This is intended to represent the
+            datetime that the call is being made, which affects how times are resolved. Strings will be interpreted as
+            ISO 8601 datetime strings, which helps with testing.
         location (Location, optional): Location used for sunrise/sunset parsing. This is needed in order to parse
             sunset/sunrise times from the input.
-        today (bool, optional): If `True`, forces the result to be today. If `False`, allows the result to be in the
-            past. This will be forced to `False` if the ``days_offset`` is negative.
-        offset (timedelta, optional): An optional offset to apply to the resulting datetime.
-        days_offset (int, optional): Number of days to offset from the current date for sunrise/sunset parsing.
+        today (bool, optional): If `True`, forces the result to have the same date as the `now` datetime. `False` is 
+            effectively equivalent to `next`. The default value is `None`, which doesn't try to coerce the output at
+            all. This results in slightly different date results for different input types. For example, a time string
+            will be given the same date as the one in the `now` datetime, but a sun event string will be the datetime
+            of the next one.
+        offset (timedelta, optional): An optional offset to apply to the resulting datetime. This is separate from the
+            offset that may be included in an input string, and the `days_offset` parameter.
+        days_offset (int, optional): Number of days to offset from the current date for sunrise/sunset parsing. If this
+            is negative, this will unset the `today` argument, which allows the result to be in the past.
         aware (bool, optional): If `False`, the resulting datetime will be naive (without timezone). Defaults to
             `True`.
 
@@ -353,9 +361,12 @@ def parse_datetime(
         case _:
             raise NotImplementedError(f"Unsupported input type: {type(input_)}")
 
-    if result.tzinfo is None and aware:
-        # Just adds the timezone without changing the time values
-        result = result.replace(tzinfo=now.tzinfo)
+    if aware:
+        if result.tzinfo is None:
+            # Just adds the timezone without changing the time values
+            result = result.replace(tzinfo=now.tzinfo)
+        else:
+            result = result.astimezone(now.tzinfo)
 
     # The the days offset is negative, the result can't be forced to today, so set today to False
     if days_offset < 0:
