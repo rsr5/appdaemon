@@ -313,7 +313,7 @@ def parse_datetime(
             ISO 8601 datetime strings, which helps with testing.
         location (Location, optional): Location used for sunrise/sunset parsing. This is needed in order to parse
             sunset/sunrise times from the input.
-        today (bool, optional): If `True`, forces the result to have the same date as the `now` datetime. `False` is 
+        today (bool, optional): If `True`, forces the result to have the same date as the `now` datetime. `False` is
             effectively equivalent to `next`. The default value is `None`, which doesn't try to coerce the output at
             all. This results in slightly different date results for different input types. For example, a time string
             will be given the same date as the one in the `now` datetime, but a sun event string will be the datetime

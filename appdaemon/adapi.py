@@ -23,7 +23,7 @@ from appdaemon.events import EventCallback
 from appdaemon.logging import Logging
 from appdaemon.models.config.app import AppConfig
 from appdaemon.parse import resolve_time_str
-from appdaemon.state import StateCallback
+from appdaemon.state import StateCallbackType
 
 T = TypeVar("T")
 
@@ -787,7 +787,7 @@ class ADAPI:
     async def add_entity(
         self,
         entity_id: str,
-        state: str | dict[str, Any],
+        state: Any,
         attributes: dict | None = None,
         namespace: str | None = None,
     ) -> None:
@@ -1402,7 +1402,7 @@ class ADAPI:
     @utils.sync_decorator
     async def listen_state(
         self,
-        callback: StateCallback,
+        callback: StateCallbackType,
         entity_id: str | None,
         namespace: str | None = None,
         new: str | Callable[[Any], bool] | None = None,
@@ -1421,7 +1421,7 @@ class ADAPI:
     @utils.sync_decorator
     async def listen_state(
         self,
-        callback: StateCallback,
+        callback: StateCallbackType,
         entity_id: Iterable[str],
         namespace: str | None = None,
         new: str | Callable[[Any], bool] | None = None,
@@ -1439,7 +1439,7 @@ class ADAPI:
     @utils.sync_decorator
     async def listen_state(
         self,
-        callback: StateCallback,
+        callback: StateCallbackType,
         entity_id: str | Iterable[str] | None = None,
         namespace: str | None = None,
         new: str | Callable[[Any], bool] | None = None,

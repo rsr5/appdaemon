@@ -40,4 +40,3 @@ async def test_run_in_delay(run_app_for_time, delay):
         else:
             # If it reaches here, no matching record was found
             assert False, "Run in callback was not executed"
-            assert False, "Run in callback was not executed"

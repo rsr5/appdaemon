@@ -41,6 +41,7 @@ class Scheduler:
     diag: Logger
 
     schedule: dict[str, dict[str, Any]]
+    location: Location
 
     name: str = "_scheduler"
     active_event: asyncio.Event
@@ -54,7 +55,6 @@ class Scheduler:
         self.last_fired = None
         self.sleep_task = None
         self.timer_resetted = False
-        self.location = None
         self.schedule = {}
 
         self.active_event = asyncio.Event()
@@ -854,10 +854,25 @@ class Scheduler:
         today: bool | None = None,
         days_offset: int = 0
     ) -> datetime:  # fmt: skip
-        now = await self.get_now()
+        """Parse a variety of inputs into a datetime object.
+
+        Args:
+            input_ (str | time | datetime): The input to parse. Can be a string, time, or datetime object.
+            aware (bool, optional): If `False`, the resulting datetime will be naive (without timezone). Defaults to
+                `True`.
+            today (bool, optional): If `True`, forces the result to have the same date as the `now` datetime. `False` is
+                effectively equivalent to `next`. The default value is `None`, which doesn't try to coerce the output at
+                all. This results in slightly different date results for different input types. For example, a time string
+                will be given the same date as the one in the `now` datetime, but a sun event string will be the datetime
+                of the next one.
+            days_offset (int, optional): Number of days to offset from the current date for sunrise/sunset parsing. If
+                this is negative, this will unset the `today` argument, which allows the result to be in the past.
+        """
+        # Need to force timezone during time-travel mode
+        now = (await self.get_now()).astimezone(self.AD.tz)
         return parse.parse_datetime(
             input_=input_,
-            now=now.astimezone(self.AD.tz), # Need to force timezone during time-travel mode
+            now=now,
             location=self.location,
             today=today,
             days_offset=days_offset,

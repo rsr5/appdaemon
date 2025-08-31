@@ -162,9 +162,9 @@ class PersistentDict(shelve.DbfilenameShelf):
         with self.rlock:
             super().sync()
 
-    def update(self, save=True, *args, **kwargs):
+    def update(self, new: dict, *args, save=True, **kwargs):
         with self.rlock:
-            for key, value in dict(*args, **kwargs).items():
+            for key, value in dict(*args, **new, **kwargs).items():
                 # use super().__setitem__() to prevent multiple save() calls
                 super().__setitem__(key, value)
                 if self.safe and save:

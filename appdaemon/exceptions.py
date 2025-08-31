@@ -3,7 +3,6 @@ Exceptions used by appdaemon
 
 """
 import asyncio
-from contextlib import contextmanager
 import functools
 import inspect
 import json
@@ -12,6 +11,7 @@ import sys
 import traceback
 from abc import ABC
 from collections.abc import Iterable
+from contextlib import contextmanager
 from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
@@ -344,8 +344,9 @@ class BadAppConfigFile(AppDaemonException):
     path: Path
 
 
+@dataclass
 class TimeOutException(AppDaemonException):
-    pass
+    msg: str
 
 
 class StartupAbortedException(AppDaemonException):
