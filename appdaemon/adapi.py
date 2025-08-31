@@ -22,6 +22,7 @@ from appdaemon.entity import Entity
 from appdaemon.events import EventCallback
 from appdaemon.logging import Logging
 from appdaemon.models.config.app import AppConfig
+from appdaemon.parse import resolve_time_str
 from appdaemon.state import StateCallback
 
 T = TypeVar("T")
@@ -241,7 +242,7 @@ class ADAPI:
         stack_info: bool = False,
         stacklevel: int = 1,
         extra: Mapping[str, object] | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Logs a message to AppDaemon's main logfile.
 
@@ -2443,7 +2444,6 @@ class ADAPI:
         """
         return await self.AD.sched.parse_time(
             time_str=time_str,
-            name=name or self.name,
             aware=aware,
             today=today,
             days_offset=days_offset,
@@ -2508,7 +2508,6 @@ class ADAPI:
         """
         return await self.AD.sched.parse_datetime(
             input_=time_str,
-            name=name or self.name,
             aware=aware,
             today=today,
             days_offset=days_offset,
@@ -2536,18 +2535,6 @@ class ADAPI:
 
         """
         return (await self.get_now(aware)).timestamp()
-
-    @overload
-    @utils.sync_decorator
-    async def now_is_between(self, start_time: str, end_time: str) -> bool: ...
-
-    @overload
-    @utils.sync_decorator
-    async def now_is_between(self, start_time: str, end_time: str, name: str) -> bool: ...
-
-    @overload
-    @utils.sync_decorator
-    async def now_is_between(self, start_time: str, end_time: str, now: str) -> bool: ...
 
     @utils.sync_decorator
     async def now_is_between(
@@ -2977,7 +2964,7 @@ class ADAPI:
                     raise ValueError(f"Invalid sun event: {start_str}")
 
                 now = await self.get_now() # type: ignore
-                _, offset = utils.parse_time_str(start_str, now=now, location=self.AD.sched.location)
+                _, offset = resolve_time_str(start_str, now=now, location=self.AD.sched.location)
                 func = functools.partial(func, *args, repeat=True, offset=offset)
             case _:
                 start = await self.AD.sched.parse_datetime(start, aware=True)
@@ -3069,7 +3056,7 @@ class ADAPI:
                     raise ValueError(f"Invalid sun event: {start_str}")
 
                 now = await self.get_now() # type: ignore
-                _, offset = utils.parse_time_str(start_str, now=now, location=self.AD.sched.location)
+                _, offset = resolve_time_str(start_str, now=now, location=self.AD.sched.location)
                 func = functools.partial(func, callback, *args, repeat=True, offset=offset)
             case _:
                 func = functools.partial(

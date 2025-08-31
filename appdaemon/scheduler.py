@@ -14,7 +14,7 @@ import pytz
 from astral import LocationInfo
 from astral.location import Location
 
-from . import utils
+from . import parse, utils
 
 if TYPE_CHECKING:
     from .adbase import ADBase
@@ -807,13 +807,10 @@ class Scheduler:
         now: datetime | None = None,
     ) -> bool:
         now = now if now is not None else await self.get_now()
-        # Need to force timezone during time-travel mode
-        now = now.astimezone(self.AD.tz)
         return utils.now_is_between(
-            now=now,
+            now=now.astimezone(self.AD.tz),  # Need to force timezone during time-travel mode
             start_time=start_time,
             end_time=end_time,
-            tz=self.AD.tz,
             location=self.location,
         )
 
@@ -838,7 +835,6 @@ class Scheduler:
     async def parse_time(
         self,
         time_str: str,
-        name: str | None = None,
         aware: bool = False,
         today: bool | None = None,
         days_offset: int = 0
@@ -854,19 +850,15 @@ class Scheduler:
     async def parse_datetime(
         self,
         input_: str | time | datetime,
-        name: str | None = None,
         aware: bool = False,
         today: bool | None = None,
         days_offset: int = 0
     ) -> datetime:  # fmt: skip
         now = await self.get_now()
-        # Need to force timezone during time-travel mode
-        now = now.astimezone(self.AD.tz)
-        return utils.parse_datetime(
+        return parse.parse_datetime(
             input_=input_,
-            now=now,
+            now=now.astimezone(self.AD.tz), # Need to force timezone during time-travel mode
             location=self.location,
-            timezone=self.AD.tz,
             today=today,
             days_offset=days_offset,
             aware=aware,

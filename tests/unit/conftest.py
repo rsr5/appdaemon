@@ -5,11 +5,10 @@ from datetime import date, datetime, time
 from functools import partial
 
 import pytest
+from appdaemon import parse
 from astral import LocationInfo
 from astral.location import Location
 from pytz import BaseTzInfo, timezone
-
-from appdaemon import utils
 
 
 @pytest.fixture
@@ -58,13 +57,13 @@ def late_now(now_creator: Callable[..., datetime]) -> datetime:
 
 
 @pytest.fixture
-def parser(tz: BaseTzInfo, default_now: datetime) -> partial[datetime]:
-    return partial(utils.parse_datetime, now=default_now, timezone=tz)
+def parser(default_now: datetime) -> partial[datetime]:
+    return partial(parse.parse_datetime, now=default_now)
 
 
 @pytest.fixture
-def parser_location(tz: BaseTzInfo, location: Location) -> partial[datetime]:
-    return partial(utils.parse_datetime, location=location, timezone=tz)
+def parser_location(location: Location) -> partial[datetime]:
+    return partial(parse.parse_datetime, location=location)
 
 
 @pytest.fixture
