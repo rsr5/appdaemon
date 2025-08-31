@@ -109,7 +109,7 @@ line-length = 120
 
 [tool.ruff]
 
-src = ["appdaemon"]
+src = ["appdaemon", "tests"]
 
 # Exclude a variety of commonly ignored directories.
 exclude = [
@@ -147,8 +147,8 @@ lint.select = ["E", "F"]
 lint.ignore = []
 
 # Allow autofix for all enabled rules (when `--fix`) is provided.
-# lint.fixable = ["E", "F", "UP"]
-lint.fixable = ["ALL"]
+lint.fixable = ["E", "F", "UP"]
+# lint.fixable = ["ALL"]
 lint.unfixable = []
 
 # Allow unused variables when underscore-prefixed.
