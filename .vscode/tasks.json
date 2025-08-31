@@ -40,7 +40,7 @@
             "problemMatcher": [],
             "command": "docker",
             "args": [
-                "build", 
+                "build",
                 "-t", "acockburn/appdaemon:local-dev",
                 // "-f", "Dockerfile.uv",
                 "${workspaceFolder}"
