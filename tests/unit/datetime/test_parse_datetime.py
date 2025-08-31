@@ -2,12 +2,13 @@ from datetime import date, datetime, timedelta
 from functools import partial
 from typing import Literal
 
-import appdaemon.parse
 import pytest
-from appdaemon import utils
 from astral import SunDirection
 from astral.location import Location
 from pytz import BaseTzInfo
+
+import appdaemon.parse
+from appdaemon.parse import resolve_time_str
 
 from .utils import ParameterBuilder
 
@@ -73,7 +74,7 @@ class TestParseDatetime:
         assert result.tzinfo is not None
 
         type_ = input_.split()[0]
-        offset = utils.parse_offset(input_)
+        _, offset = resolve_time_str(input_, now=now, location=location)
 
         match now_str, when, type_:
             case (_, "today", "sunrise"):

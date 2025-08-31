@@ -377,17 +377,6 @@ def format_timedelta(td: str | int | float | timedelta | None) -> str:
                 return res
 
 
-def parse_offset(input_: str) -> timedelta:
-    if m := re.search(r"\s+(?P<sign>[+-])\s+", input_):
-        offset = parse_timedelta(input_[m.span()[1]:])
-        match m.group("sign"):
-            case "-":
-                offset *= -1
-            case "+":
-                pass
-    return offset
-
-
 def now_is_between(
     now: datetime,
     start_time: str | time | datetime,
