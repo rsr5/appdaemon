@@ -117,6 +117,14 @@ class Threading:
     def total_threads(self, new: int):
         self.AD.config.total_threads = new
 
+    def stop(self):
+        """Stop all threads."""
+        for thread in self.threads.values():
+            match thread:
+                case {"queue": Queue() as q, "thread": Thread() as t}:
+                    q.put(None)
+                    t.join(timeout=1)
+
     async def get_q_update(self):
         """Updates queue sizes"""
         for thread in self.threads:
@@ -233,7 +241,7 @@ class Threading:
             },
         )
 
-    def get_q(self, thread_id: str) -> Queue:
+    def get_q(self, thread_id: str) -> Queue[dict[str, Any] | None]:
         return self.threads[thread_id]["queue"]
 
     @staticmethod
@@ -1016,25 +1024,31 @@ class Threading:
         thread_id = threading.current_thread().name
         q = self.get_q(thread_id)
         while True:
-            args = q.get()
-            _type = args["type"]
-            funcref = args["function"]
-            _id = args["id"]
-            objectid = args["objectid"]
-            name = args["name"]
-            error_logger = logging.getLogger(f"Error.{name}")
-            args["kwargs"]["__thread_id"] = thread_id
-
-            silent = False
-            if "__silent" in args["kwargs"]:
-                silent = args["kwargs"]["__silent"]
+            match args := q.get():
+                case {
+                    "type": _type,
+                    "function": funcref,
+                    "id": _id,
+                    "objectid": objectid,
+                    "name": name,
+                    "kwargs": kwargs
+                }:
+                    args["kwargs"]["__thread_id"] = thread_id
+                    error_logger = logging.getLogger(f"Error.{name}")
+                    silent = kwargs.get("__silent", False)
+                case None:
+                    self.logger.debug("Stopping worker thread %s", thread_id)
+                    break
+                case _:
+                    self.logger.warning("Unknown callback type for %s - discarding", name)
+                    return
 
             app = self.AD.app_management.get_app_instance(name, objectid)
             if app is not None:
                 try:
                     pos_args = tuple()
                     kwargs = dict()
-                    match args["type"]:
+                    match _type:
                         case "scheduler":
                             kwargs = self.AD.sched.sanitize_timer_kwargs(app, args["kwargs"])
 
@@ -1107,6 +1121,8 @@ class Threading:
                 if not self.AD.stopping:
                     self.logger.warning(f"Found stale callback for {name} - discarding")
                 q.task_done()
+
+        self.logger.debug("Shutdown worker thread queue %s", thread_id)
 
     def report_callback_sig(self, name, type, funcref, args):
         error_logger = logging.getLogger("Error.{}".format(name))

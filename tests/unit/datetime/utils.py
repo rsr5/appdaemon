@@ -64,6 +64,9 @@ class ParameterBuilder:
         sun_params = {
             "now_str": ["early", "midday", "late"],
             "when": ["today", "next"],
-            "input_": [f'{type_} {'+' if str_offset > 0 else '-'} {utils.parse_timedelta(abs(str_offset))}' for type_, str_offset in sun_params],
+            "input_": [
+                f'{type_} {"+" if str_offset > 0 else "-"} {utils.parse_timedelta(abs(str_offset))}'
+                for type_, str_offset in sun_params
+            ],
         }
         return _process_params(sun_params)

@@ -426,6 +426,7 @@ class AppDaemon:
                 self.logger.warning("Timed out stopping plugins, continuing shutdown")
         self.sched.stop()
         self.state.stop()
+        self.threading.stop()
 
         self.executor.shutdown(wait=True)
 
