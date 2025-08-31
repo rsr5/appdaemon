@@ -2455,7 +2455,7 @@ class ADAPI:
         time_str: str,
         name: str | None = None,
         aware: bool = False,
-        today: bool = False,
+        today: bool | None = None,
         days_offset: int = 0,
     ) -> dt.datetime:
         """Creates a `datetime` object from its string representation.
