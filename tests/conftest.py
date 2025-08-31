@@ -141,6 +141,7 @@ def logging_obj() -> Logging:
 
 AsyncTempTest = Callable[..., AbstractAsyncContextManager[tuple[AppDaemon, pytest.LogCaptureFixture]]]
 
+
 @pytest_asyncio.fixture(scope="function")
 async def run_app_for_time(ad: AppDaemon, caplog: pytest.LogCaptureFixture) -> AsyncTempTest:
     @asynccontextmanager
@@ -148,7 +149,6 @@ async def run_app_for_time(ad: AppDaemon, caplog: pytest.LogCaptureFixture) -> A
         with caplog.at_level(logging.DEBUG, logger=f"AppDaemon.{app_name}"):
             async with ad.app_management.app_run_context(app_name, **kwargs):
                 logger.info(f"===== Running app {app_name} for {format_timedelta(run_time)}")
-                logger.info(f"Temporarily adding args to app: {kwargs}")
                 if run_time is not None:
                     await asyncio.sleep(run_time)
                 logger.info("=== Done, yielding caplog for inspection")

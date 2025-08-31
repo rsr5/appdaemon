@@ -9,10 +9,12 @@ from .utils import AsyncTempTest
 
 logger = logging.getLogger("AppDaemon._test")
 
+
 @pytest.mark.ci
 @pytest.mark.functional
 class TestEventCallback:
     """Class to group the various tests for event callbacks."""
+
     app_name: str = "test_event_app"
 
     @pytest.mark.asyncio(loop_scope="session")

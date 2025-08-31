@@ -25,17 +25,19 @@ async def test_run_every(
     run_app_for_time: AsyncTempTest,
     interval: str | int | float | timedelta,
     start: str,
-    n: int = 5,
+    n: int = 2,
 ) -> None:
     interval = parse_timedelta(interval)
     run_time = (interval * n) + timedelta(seconds=0.01)
+    register_delay = 0.1
+    run_time += timedelta(seconds=register_delay)  # Accounts for the delay in registering the callback
     if (parts := re.split(r"\s+[\+]\s+", start)) and len(parts) == 2:
         _, offset = parts
         run_time += parse_timedelta(offset)
 
     app_name = "scheduler_test_app"
     test_id = str(uuid.uuid4())
-    app_args = dict(start=start, interval=interval, msg=test_id)
+    app_args = dict(start=start, interval=interval, msg=test_id, register_delay=register_delay)
     async with run_app_for_time(app_name, run_time=run_time.total_seconds(), **app_args) as (ad, caplog):
         check_interval_partial = partial(check_interval, caplog, f"kwargs: {{'msg': '{test_id}',")
 

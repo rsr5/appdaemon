@@ -33,6 +33,7 @@ TIMEDELTA_CASES = {
     None: timedelta(),
 }
 
+
 @pytest.mark.parametrize("val", TIMEDELTA_CASES.keys())
 def test_parse_timedelta(val: Any) -> None:
     assert parse.parse_timedelta(val) == TIMEDELTA_CASES[val]
@@ -50,19 +51,15 @@ def test_parse_timedelta(val: Any) -> None:
 
 
 DATETIME_PARAMS = {
-    'val': ["now", "now + 05:00", "sunrise-1hr", "sunset + 30mins", "16:20:00", "3:30 am"],
-    'now': [
-        "2025-06-20T04:00:00-04:00",
-        "2025-06-20T12:00:00-04:00",
-        "2025-06-20T23:00:00-04:00"
-    ],
+    "val": ["now", "now + 05:00", "sunrise-1hr", "sunset + 30mins", "16:20:00", "3:30 am"],
+    "now": ["2025-06-20T04:00:00-04:00", "2025-06-20T12:00:00-04:00", "2025-06-20T23:00:00-04:00"],
 }
 
 DATETIME_CASES = {
     ("now", "2025-06-20T04:00:00-04:00"): ("2025-06-20T04:00:00-04:00", timedelta()),
-    ("sunrise-1hr", "2025-06-20T04:00:00-04:00"): ('2025-06-20T05:25:07.925165-04:00', timedelta(hours=-1)),
-    ("sunrise-1hr", "2025-06-20T12:00:00-04:00"): ('2025-06-20T05:25:07.925165-04:00', timedelta(hours=-1)),
-    ("sunrise-1hr", "2025-06-20T23:00:00-04:00"): ('2025-06-20T05:25:07.925165-04:00', timedelta(hours=-1)),
+    ("sunrise-1hr", "2025-06-20T04:00:00-04:00"): ("2025-06-20T05:25:07.925165-04:00", timedelta(hours=-1)),
+    ("sunrise-1hr", "2025-06-20T12:00:00-04:00"): ("2025-06-20T05:25:07.925165-04:00", timedelta(hours=-1)),
+    ("sunrise-1hr", "2025-06-20T23:00:00-04:00"): ("2025-06-20T05:25:07.925165-04:00", timedelta(hours=-1)),
     ("sunset + 30mins", "2025-06-20T23:00:00-04:00"): ("2025-06-20T20:30:19.662056-04:00", timedelta(minutes=30)),
     ("16:20:00", "2025-06-20T04:00:00-04:00"): ("2025-06-20T16:20:00-04:00", timedelta()),
     ("16:20:00", "2025-06-20T12:00:00-04:00"): ("2025-06-20T16:20:00-04:00", timedelta()),
@@ -71,10 +68,7 @@ DATETIME_CASES = {
 
 
 OFFSETS = ["", "-1hr", " + 30 mins"]
-NOW_PARAMS = {
-    "val": [f'now{offset}' for offset in OFFSETS],
-    "now_str": ["2025-06-20T12:00:00-04:00"]
-}
+NOW_PARAMS = {"val": [f"now{offset}" for offset in OFFSETS], "now_str": ["2025-06-20T12:00:00-04:00"]}
 
 NOW_CASES = {
     ("now", "2025-06-20T12:00:00-04:00"): ("2025-06-20T12:00:00-04:00", timedelta()),
@@ -82,10 +76,7 @@ NOW_CASES = {
     ("now + 30 mins", "2025-06-20T12:00:00-04:00"): ("2025-06-20T12:00:00-04:00", timedelta(minutes=30)),
 }
 
-SUN_OFFSET_PARAMS = {
-    "val": [f'{b}{offset}' for b, offset in itertools.product(["sunrise", "sunset"], OFFSETS)],
-    "now_str": ["2025-06-20T12:00:00-04:00"]
-}
+SUN_OFFSET_PARAMS = {"val": [f"{b}{offset}" for b, offset in itertools.product(["sunrise", "sunset"], OFFSETS)], "now_str": ["2025-06-20T12:00:00-04:00"]}
 
 SUN_OFFSET_CASES = {
     ("sunrise", "2025-06-20T12:00:00-04:00"): ("2025-06-20T05:25:07.925165-04:00", timedelta()),
@@ -145,8 +136,8 @@ class TestParseDatetime:
         parsed_dt, parsed_td = parse.resolve_time_str(val, now_str)
 
         correct_dt_str, correct_td = NOW_CASES.get((val, now_str), (None, None))
-        assert parsed_dt.isoformat() == correct_dt_str, f'Parsed datetime {parsed_dt} does not match expected {correct_dt_str}'
-        assert parsed_td == correct_td, f'Parsed timedelta {parsed_td} does not match expected {correct_td}'
+        assert parsed_dt.isoformat() == correct_dt_str, f"Parsed datetime {parsed_dt} does not match expected {correct_dt_str}"
+        assert parsed_td == correct_td, f"Parsed timedelta {parsed_td} does not match expected {correct_td}"
 
 
 class TestParseSunTimes:
@@ -155,26 +146,26 @@ class TestParseSunTimes:
         parsed_dt, parsed_td = parse.resolve_time_str(val, now_str, location=location)
 
         correct_dt_str, correct_td = SUN_OFFSET_CASES.get((val, now_str), (None, None))
-        assert parsed_dt.isoformat() == correct_dt_str, f'Parsed datetime {parsed_dt} does not match expected {correct_dt_str}'
-        assert parsed_td == correct_td, f'Parsed timedelta {parsed_td} does not match expected {correct_td}'
+        assert parsed_dt.isoformat() == correct_dt_str, f"Parsed datetime {parsed_dt} does not match expected {correct_dt_str}"
+        assert parsed_td == correct_td, f"Parsed timedelta {parsed_td} does not match expected {correct_td}"
 
     @parametrize(SUNRISE_PARAMS)
     def test_next_sunrise(self, val: str, now_str: str, today: bool | None, location: Location) -> None:
         """Tests whether the today argument works correctly around sunrises."""
         result = parse.parse_datetime(val, now_str, location=location, today=today)
         correct = SUN_NEXT_CASES.get((val, now_str, today), None)
-        assert result.isoformat() == correct, f'Incorrect result: {result}'
+        assert result.isoformat() == correct, f"Incorrect result: {result}"
 
     @parametrize(SUNSET_PARAMS)
     def test_next_sunset(self, val: str, now_str: str, today: bool | None, location: Location) -> None:
         """Tests whether the today argument works correctly around sunsets."""
         result = parse.parse_datetime(val, now_str, location=location, today=today)
         correct = SUN_NEXT_CASES.get((val, now_str, today), None)
-        assert result.isoformat() == correct, f'Incorrect result: {result}'
+        assert result.isoformat() == correct, f"Incorrect result: {result}"
 
     @parametrize(SUNRISE_DAY_OFFSET_PARAMS)
     def test_sunrise_days_offset(self, val: str, now_str: str, days_offset: int, location: Location) -> None:
-        result = parse.parse_datetime(val, now_str, location=location, days_offset=days_offset)
+        parse.parse_datetime(val, now_str, location=location, days_offset=days_offset)
         return
 
 
@@ -198,8 +189,8 @@ def test_parse_datetime(val: str, now: str, location: Location) -> None:
 
     parsed_dt, parsed_td = parse.resolve_time_str(val, now_dt, location)
 
-    assert isinstance(parsed_dt, datetime), f'Parsed datetime is not a datetime object for {val} with {now}'
-    assert isinstance(parsed_td, timedelta), f'Parsed timedelta is not a timedelta object for {val} with {now}'
+    assert isinstance(parsed_dt, datetime), f"Parsed datetime is not a datetime object for {val} with {now}"
+    assert isinstance(parsed_td, timedelta), f"Parsed timedelta is not a timedelta object for {val} with {now}"
 
-    assert parsed_dt == correct_dt, f'Incorrect datetime for {val} with {now}'
-    assert correct_td == parsed_td, f'Incorrect offset timedelta for {val} with {now}'
+    assert parsed_dt == correct_dt, f"Incorrect datetime for {val} with {now}"
+    assert correct_td == parsed_td, f"Incorrect offset timedelta for {val} with {now}"

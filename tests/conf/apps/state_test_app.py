@@ -20,7 +20,6 @@ class StateTestAppMode(str, Enum):
     NEW_ATTRIBUTE_FILTER_NEGATIVE = auto()
 
 
-
 TEST_ENTITY = "test.some_entity"
 
 
@@ -55,7 +54,7 @@ class StateTestApp(ADAPI):
         assert isinstance(entity, str), "Entity should be a string"
         assert isinstance(attribute, str), "Attribute should be a string"
 
-        self.log(f' {entity}.{attribute} '.center(40, '-'))
+        self.log(f" {entity}.{attribute} ".center(40, "-"))
         self.log(f"{entity}.{attribute} changed from {old} to {new} with kwargs: {kwargs}")
 
         new_state = self.get_state(entity, attribute="all")

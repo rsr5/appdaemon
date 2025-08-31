@@ -2,13 +2,12 @@ from datetime import date, datetime, timedelta
 from functools import partial
 from typing import Literal
 
+import appdaemon.parse
 import pytest
+from appdaemon.parse import resolve_time_str
 from astral import SunDirection
 from astral.location import Location
 from pytz import BaseTzInfo
-
-import appdaemon.parse
-from appdaemon.parse import resolve_time_str
 
 from .utils import ParameterBuilder
 
@@ -16,6 +15,7 @@ pytestmark = [
     pytest.mark.ci,
     pytest.mark.unit,
 ]
+
 
 class TestParseDatetime:
     @pytest.mark.parametrize(*ParameterBuilder.hour_params())

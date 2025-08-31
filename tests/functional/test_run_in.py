@@ -14,12 +14,15 @@ ERROR_MARGIN = 0.005  # Allowable error margin for run_in timing
 async def test_run_in_delay(run_app_for_time, delay):
     run_time = parse_timedelta(delay).total_seconds()
     run_time += ERROR_MARGIN * 10
+    register_delay = 0.1
+    run_time += register_delay
     test_id = str(uuid.uuid4())  # Generate a unique test ID for each run
-    async with run_app_for_time("test_run_in", run_time=run_time, delay=delay, test_id=test_id) as (ad, caplog):
+    kwargs = dict(delay=delay, test_id=test_id, register_delay=register_delay)
+    async with run_app_for_time("test_run_in", run_time=run_time, **kwargs) as (ad, caplog):
         assert "TestSchedulerRunIn initialized" in caplog.text
         for record in caplog.records:
             match record:
-                case logging.LogRecord(msg="TestSchedulerRunIn initialized", created=created_ts):
+                case logging.LogRecord(msg=msg, created=created_ts) if msg.startswith("Registering run_in"):
                     # Nothing really needs to happen here. The created_ts variable is set if the record is matched.
                     # It's already been asserted that this text is somewhere in the caplog text, so this is guaranteed to
                     # match one of the records.
@@ -36,4 +39,5 @@ async def test_run_in_delay(run_app_for_time, delay):
                     break
         else:
             # If it reaches here, no matching record was found
+            assert False, "Run in callback was not executed"
             assert False, "Run in callback was not executed"

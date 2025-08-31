@@ -6,7 +6,7 @@ from appdaemon import utils
 
 
 def _process_params(params: dict[str, list[Any]]) -> tuple[tuple[str, ...], list[tuple[Any, ...]]]:
-        return tuple(params.keys()), list(itertools.product(*params.values()))
+    return tuple(params.keys()), list(itertools.product(*params.values()))
 
 
 class ParameterBuilder:
@@ -35,7 +35,7 @@ class ParameterBuilder:
             "input_": [f"{i:02}:00" for i in range(0, 24, 6)],
             "aware": [True, False],
             "today": [True, False]
-        }
+        }  # fmt: skip
         return _process_params(hour_params)
 
     @staticmethod
@@ -52,7 +52,7 @@ class ParameterBuilder:
         sunrise_params = (
             (f"sunrise {'+' if sign else '-'} {offset}", today, aware)
             for offset, sign, today, aware in sunrise_params
-        )
+        )  # fmt: skip
         sunrise_params = (("input_", "today", "aware"), list(sunrise_params))
 
         offsets = [timedelta(seconds=1), timedelta(minutes=1), timedelta(hours=1.5)]

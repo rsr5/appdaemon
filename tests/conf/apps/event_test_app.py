@@ -17,6 +17,7 @@ class TestEventCallback(ADAPI):
         listen_kwargs: The keyword arguments to pass to the listen_event method
         fire_kwargs: The keyword arguments to pass to the fire_event method
     """
+
     def initialize(self):
         self.execute_event = asyncio.Event()
         self.listen_event(self.event_callback, self.event, **self.listen_kwargs)

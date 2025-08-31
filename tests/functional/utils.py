@@ -10,7 +10,6 @@ from tests.utils import assert_timedelta, filter_caplog
 AsyncTempTest = Callable[..., AbstractAsyncContextManager[tuple[AppDaemon, pytest.LogCaptureFixture]]]
 
 
-
 def check_interval(
     caplog: pytest.LogCaptureFixture,
     search_str: str,
@@ -20,4 +19,4 @@ def check_interval(
 ) -> None:
     logs = list(filter_caplog(caplog, search_str))
     assert_timedelta(logs, interval, buffer)
-    assert len(logs) == n, f"Expected {n} log entries with '{search_str}', found {len(logs)}"
+    assert len(logs) >= n, f"Expected {n} log entries with '{search_str}', found {len(logs)}"

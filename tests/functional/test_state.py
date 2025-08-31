@@ -11,14 +11,13 @@ from .utils import AsyncTempTest
 logger = logging.getLogger("AppDaemon._test")
 
 
-
 @pytest.mark.ci
 @pytest.mark.functional
 class TestStateCallback:
     """Class to group the various tests for state callbacks."""
+
     app_name: str = "state_test_app"
     timeout: int | float = 0.6
-
 
     async def _run_callback_test(self, run_app_for_time: AsyncTempTest, app_args: dict, sign: bool) -> None:
         """Helper method to run callback tests with common logic.
@@ -33,15 +32,15 @@ class TestStateCallback:
                     wait_coro = asyncio.wait_for(app_obj.execute_event.wait(), timeout=self.timeout)
                     if sign:
                         await wait_coro
-                        logger.debug('Callback execute event was set')
+                        logger.debug("Callback execute event was set")
                     else:
                         # We expect the timeout because the new state filter doesn't match
                         with pytest.raises(asyncio.TimeoutError):
                             await wait_coro
-                        logger.debug('Callback execute event was not set')
+                        logger.debug("Callback execute event was not set")
                 case _:
                     raise ValueError("App object not found in app management")
-        logger.debug(f'Test completed in {perf_counter() - start:.3f} seconds')
+        logger.debug(f"Test completed in {perf_counter() - start:.3f} seconds")
 
     @pytest.mark.parametrize("sign", [True, False])
     @pytest.mark.asyncio(loop_scope="session")
@@ -105,19 +104,18 @@ class TestStateCallback:
         async with run_app_for_time(self.app_name, **app_args) as (ad, caplog):
             match ad.app_management.objects.get(self.app_name):
                 case ManagedObject(object=app_obj):
-                    app_obj.run_in(app_obj.test_change_state, delay=app_obj.delay*2, state="abc")
-                    wait_coro = asyncio.wait_for(app_obj.execute_event.wait(), timeout=self.timeout*2)
+                    app_obj.run_in(app_obj.test_change_state, delay=app_obj.delay * 2, state="abc")
+                    wait_coro = asyncio.wait_for(app_obj.execute_event.wait(), timeout=self.timeout * 2)
                     if sign:
                         await wait_coro
-                        logger.debug('Callback execute event was set')
+                        logger.debug("Callback execute event was set")
                     else:
                         # We expect the timeout because the new state filter doesn't match
                         with pytest.raises(asyncio.TimeoutError):
                             await wait_coro
-                        logger.debug('Callback execute event was not set')
+                        logger.debug("Callback execute event was not set")
                 case _:
                     raise ValueError("App object not found in app management")
-
 
     @pytest.mark.parametrize("sign", [True, False])
     @pytest.mark.asyncio(loop_scope="session")
@@ -144,8 +142,5 @@ class TestStateCallback:
         """
         new_state = str(uuid.uuid4())
         listen_state = new_state if sign else str(uuid.uuid4())
-        app_args = {
-            "listen_kwargs": {"attribute": "test_attr", "new": listen_state},
-            "state_kwargs": {"state": "changed", "test_attr": new_state}
-        }
+        app_args = {"listen_kwargs": {"attribute": "test_attr", "new": listen_state}, "state_kwargs": {"state": "changed", "test_attr": new_state}}
         await self._run_callback_test(run_app_for_time, app_args, sign)
