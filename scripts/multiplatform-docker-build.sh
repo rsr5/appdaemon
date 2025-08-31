@@ -117,7 +117,7 @@ docker buildx build \
     --platform "$PLATFORMS" \
     --tag "$IMAGE_TAG" \
     --output "type=oci,dest=${ARCHIVE_PATH}" \
-    -f Dockerfile.uv \
+    -f Dockerfile \
     ${REPO_DIR}
 
 print_success "Multi-platform images built and exported"
@@ -162,33 +162,33 @@ while IFS=' ' read -r platform digest; do
     if [ -z "$platform" ] || [ -z "$digest" ]; then
         continue
     fi
-    
+
     MANIFEST_HASH=$(echo "$digest" | cut -d: -f2)
     MANIFEST_FILE="blobs/sha256/$MANIFEST_HASH"
-    
+
     if [ ! -f "$MANIFEST_FILE" ]; then
         print_warning "Manifest file not found for $platform: $MANIFEST_FILE"
         continue
     fi
-    
+
     # Calculate total size of all layers for this platform
     PLATFORM_SIZE=$(jq -r '.layers[].size' "$MANIFEST_FILE" | awk '{sum += $1} END {print sum}')
-    
+
     # Convert to MB (using awk instead of bc for better compatibility)
     PLATFORM_SIZE_MB=$(echo "$PLATFORM_SIZE" | awk '{printf "%.2f", $1/1024/1024}')
-    
+
     printf "%-20s %12s MB\n" "$platform" "$PLATFORM_SIZE_MB"
-    
+
     TOTAL_SIZE=$((TOTAL_SIZE + PLATFORM_SIZE))
     PLATFORM_COUNT=$((PLATFORM_COUNT + 1))
-    
+
 done <<< "$PLATFORM_MANIFESTS"
 
 # Calculate average
 if [ $PLATFORM_COUNT -gt 0 ]; then
     AVERAGE_SIZE_MB=$(echo "$TOTAL_SIZE $PLATFORM_COUNT" | awk '{printf "%.2f", $1/$2/1024/1024}')
     ARCHIVE_SIZE_MB=$(du -m "$ARCHIVE_NAME" | cut -f1)
-    
+
     echo
     echo "Summary:"
     echo "--------"
