@@ -5,6 +5,17 @@ These notes are intended to assist anyone that wants to understand AppDaemon's i
 
 Structure
 ---------
+The Python project follows the conventional PEP 621, using a ``pyproject.toml`` to define its metadata.
+The repository is divided into various folder:
+
+``./appdaemon``
+    source code of the Python package
+``./docs``
+    source code from which this documentation is built
+``./tests``
+    tests written with ``pytest``
+``./conf``
+    configuration directory, containing some sample files
 
 AppDaemon is organized into several subsystems managed by the central :class:`~appdaemon.appdaemon.AppDaemon` class. Each subsystem handles a specific aspect of functionality:
 
@@ -172,7 +183,6 @@ Reference
    :private-members: __call__
 
 .. autoclass:: appdaemon.services.Services
-   :private-members: __call__
 
 .. .. automodule:: appdaemon.sequences
 ..    :members:
