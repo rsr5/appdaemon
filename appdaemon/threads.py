@@ -851,7 +851,7 @@ class Threading:
         # Give user the option to discard events during the app initialize methods to prevent race conditions
         state = await self.AD.state.get_state("_threading", "admin", f"app.{name}")
         if state == "initializing" and self.AD.config.discard_init_events:
-            self.logger.warning("Incoming event while initializing - discarding")
+            self.logger.info("Incoming event while initializing - discarding")
             return
 
         unconstrained = True
@@ -1022,14 +1022,7 @@ class Threading:
         q = self.get_q(thread_id)
         while True:
             match args := q.get():
-                case {
-                    "type": _type,
-                    "function": funcref,
-                    "id": _id,
-                    "objectid": objectid,
-                    "name": name,
-                    "kwargs": kwargs
-                }:
+                case {"type": _type, "function": funcref, "id": _id, "objectid": objectid, "name": name, "kwargs": kwargs}:
                     args["kwargs"]["__thread_id"] = thread_id
                     error_logger = logging.getLogger(f"Error.{name}")
                     silent = kwargs.get("__silent", False)
