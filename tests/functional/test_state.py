@@ -144,3 +144,19 @@ class TestStateCallback:
         listen_state = new_state if sign else str(uuid.uuid4())
         app_args = {"listen_kwargs": {"attribute": "test_attr", "new": listen_state}, "state_kwargs": {"state": "changed", "test_attr": new_state}}
         await self._run_callback_test(run_app_for_time, app_args, sign)
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_immediate_callback(self, run_app_for_time: AsyncTempTest) -> None:
+        app_args = {
+            "listen_kwargs": {
+                "new": "on",
+                "immediate": True,
+            },
+        }
+        app_name = "test_immediate_state"
+        async with run_app_for_time(app_name, **app_args) as (ad, caplog):
+            match ad.app_management.objects.get(app_name):
+                case ManagedObject(object=app_obj):
+                    wait_coro = asyncio.wait_for(app_obj.execute_event.wait(), timeout=self.timeout)
+                    await wait_coro
+                    logger.debug("Callback execute event was set")

@@ -33,7 +33,8 @@ class StateTestApp(ADAPI):
         self.set_namespace("test")
         self.add_entity(TEST_ENTITY, state="initialized")
         self.listen_state(self.state_callback, TEST_ENTITY, **self.listen_kwargs)
-        self.run_in(self.test_change_state, delay=self.delay, **self.state_kwargs)
+        if "state_kwargs" in self.args:
+            self.run_in(self.test_change_state, delay=self.delay, **self.state_kwargs)
 
     @property
     def delay(self) -> float:
@@ -62,4 +63,17 @@ class StateTestApp(ADAPI):
 
         self.log(f"New state for {entity}: {new_state}")
         self.log("State callback executed successfully")
+        self.execute_event.set()
+
+
+class TestImmediate(ADAPI):
+    def initialize(self):
+        self.set_log_level("DEBUG")
+        self.set_namespace("test")
+        self.execute_event = asyncio.Event()
+        self.set_state(TEST_ENTITY, state="on")
+        self.listen_state(self.state_callback, TEST_ENTITY, immediate=True, new="on")
+        self.logger.info(f"{self.__class__.__name__} initialized")
+
+    def state_callback(self, entity: str, attribute: str, old: Any, new: Any, **kwargs: Any) -> None:
         self.execute_event.set()
