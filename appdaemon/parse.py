@@ -181,6 +181,7 @@ TIME_FORMATS = [
     "%H",
     "%H:%M",
     "%H:%M:%S",
+    "%H:%M:%S.%f",
 ]
 
 DATACLASSES: list[type[ParsedTimeString]] = [Now, SunEvent, ElevationEvent]
