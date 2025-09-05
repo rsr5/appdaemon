@@ -30,8 +30,7 @@
 - Debug log messages for state changes with `None` as the old state
 - Type hints for async state callbacks
 - Various type hints
-- Put a config option around discarding events during app initialize methods
-
+- Reverted discarding of events during app initialize methods to pre-4.5  by default and added an option to turn it on if required (should fix run_in() calls with a delay of 0 during initialize, as well as listen_state() with a duration and immediate=True)
 
 **Breaking Changes**
 
