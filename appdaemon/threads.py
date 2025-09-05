@@ -848,12 +848,9 @@ class Threading:
         return executed
 
     async def dispatch_worker(self, name: str, args: dict[str, Any]):
-        #
-        # If the app isinitializing, it's not ready for this yet so discard
-        #
-        # not a fully qualified entity name
+        # Give user the option to discard events during the app initialize methods to prevent race conditions
         state = await self.AD.state.get_state("_threading", "admin", f"app.{name}")
-        if state in ["initializing"]:
+        if state == "initializing" and self.AD.config.discard_init_events:
             self.logger.warning("Incoming event while initializing - discarding")
             return
 

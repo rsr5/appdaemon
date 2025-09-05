@@ -95,6 +95,9 @@ class AppDaemonConfig(BaseModel, extra="allow"):
     disable_apps: bool = False
     suppress_log_messages: bool = False
     """Suppresses the log messages based on the result field of the response"""
+    discard_init_events: bool = False
+    """If True, the thread workers will not do anything with events that arrive while the app is initializing. This can
+    be used to prevent race conditions at startup."""
     import_method: Literal["default", "legacy", "expert"] | None = None
 
     ascii_encode: bool = True
