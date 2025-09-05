@@ -6,6 +6,17 @@
 
 - Add skin parameter to dash_navigate function for dynamic theme switching - contributed by [Vitor](https://github.com/vitorrm)
 - Improved error handling for service calls
+- Only building python package and docker image for pushes to the dev branch
+- Filtering disabled apps from `AllAppConfig.dependency_graph()`
+- Added an assert about `pin_threads` being less than `total_threads` if both are specified
+- Added a `TESTING` update mode for `check_app_updates`
+- Refactored startup/shutdown
+- New timedelta/datetime/sun event string parsing
+    - Changed `ADAPI.run_at` to use new datetime parsing
+    - Changed `ADAPI.run_daily` to use new datetime parsing
+- Bumped versions in CI pipeline
+    - uv version
+    - Docker build/push version
 
 **Fixes**
 
@@ -13,6 +24,14 @@
 - Fix for `run_at_sunset()` and `run_at_sunrise()` defaults
 - Fix for production mode service call
 - Additional Scheduler API fixes
+- Config models
+    - Edge case that broke the logging config
+    - `persistent` gets set for namespaces if `writeback` is.
+- Debug log messages for state changes with `None` as the old state
+- Type hints for async state callbacks
+- Various type hints
+- Put a config option around discarding events during app initialize methods
+
 
 **Breaking Changes**
 
