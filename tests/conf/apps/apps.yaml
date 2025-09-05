@@ -19,3 +19,8 @@ test_event_app:
 test_immediate_state:
   module: state_test_app
   class: TestImmediate
+
+test_run_daily:
+  module: scheduler_test_app
+  class: TestSchedulerRunDaily
+  time: "00:00:05"

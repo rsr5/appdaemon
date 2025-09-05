@@ -67,3 +67,22 @@ class TestSchedulerRunIn(ADAPI):
     def run_in_callback(self, **kwargs) -> None:
         """Callback function for run_in."""
         self.logger.info("Run in callback executed with kwargs: %s", kwargs)
+
+
+class TestSchedulerRunDaily(ADAPI):
+    """A test app to verify run_daily functionality."""
+
+    def initialize(self):
+        self.set_log_level("DEBUG")
+        self.set_namespace("test")
+        self.run_daily(self.scheduled_callback, self.timing)
+        self.logger.info(f"{self.__class__.__name__} initialized")
+
+    @property
+    def timing(self) -> str:
+        """Time string for scheduling."""
+        return self.args.get("time", "00:00:05")
+
+    def scheduled_callback(self, **kwargs) -> None:
+        """Callback function for run_daily."""
+        self.logger.info("Run daily callback executed with kwargs: %s", kwargs)
