@@ -5,7 +5,7 @@ These notes are intended to assist anyone that wants to understand AppDaemon's i
 
 Structure
 ---------
-The Python project follows the conventional PEP 621, using a ``pyproject.toml`` to define its metadata.
+The Python project follows the conventional `PEP 621 <https://peps.python.org/pep-0621/>`_, using a ``pyproject.toml`` file to define its metadata.
 The repository is divided into various folder:
 
 ``./appdaemon``
@@ -82,8 +82,9 @@ method. All of them are exited in reverse order as the :py:class:`~contextlib.Ex
 
 .. literalinclude:: ../appdaemon/__main__.py
    :language: python
+   :lineno-match:
    :pyobject: main
-   :caption: Top-level entrypoint for AppDaemon
+   :caption: Top-level entrypoint in __main__.py
    :emphasize-lines: 16-17
 
 Running
@@ -93,6 +94,7 @@ ADMain runs AppDaemon by calling its :py:meth:`~appdaemon.appdaemon.AppDaemon.st
 
 .. literalinclude:: ../appdaemon/__main__.py
    :language: python
+   :lineno-match:
    :pyobject: ADMain.run
    :caption: ADMain.run() method
    :emphasize-lines: 10
@@ -104,6 +106,7 @@ Shutdown is initiated by the process running AppDaemon receiving either a :py:ob
 
 .. literalinclude:: ../appdaemon/__main__.py
    :language: python
+   :lineno-match:
    :pyobject: ADMain.handle_sig
    :caption: ADMain.handle_sig() method
    :emphasize-lines: 18-20
@@ -114,6 +117,7 @@ happens almost instantly, but this has a 3s timeout just to be safe.
 
 .. literalinclude:: ../appdaemon/__main__.py
    :language: python
+   :lineno-match:
    :pyobject: ADMain.stop
    :caption: ADMain.stop() method
    :emphasize-lines: 4
@@ -121,10 +125,26 @@ happens almost instantly, but this has a 3s timeout just to be safe.
 This will stop the event loop when all the tasks have finished, which breaks the :py:meth:`~asyncio.loop.run_forever`
 call in :py:meth:`~appdaemon.__main__.ADMain.run` and causes the :py:class:`~contextlib.ExitStack` to close.
 
+The :py:meth:`~appdaemon.appdaemon.AppDaemon.stop` method of the :py:class:`~appdaemon.appdaemon.AppDaemon` object is responsible for stopping all the subsystems in the correct order. It first sets a global stop event that all the subsystems check at the top of their respective loops. It then calls the stop methods of each subsystem in turn, waiting for each to finish before proceeding to the next one. Finally, it cancels any remaining tasks and waits for them to finish, with a timeout of 3 seconds.
+
 Stop Event
 ~~~~~~~~~~
 
-AppDaemon shutdown is globally indicated by the
+AppDaemon shutdown is globally indicated by the stop :py:class:`~asyncio.Event` getting set in the top-level :py:class:`~appdaemon.appdaemon.AppDaemon` object. All the subsystems check the status of this event using the :py:meth:`~asyncio.Event.is_set` method at the top of their respective loops, and exit if it is set. The general pattern is like this:
+
+.. code-block:: python
+
+      import asyncio
+      import contextlib
+
+      async def loop(self):
+          while not self.AD.stopping:
+               ... # Do stuff
+               with contextlib.suppress(asyncio.TimeoutError):
+                   await asyncio.wait_for(self.AD.stop_event.wait(), timeout=1)
+
+Rather than using :py:func:`~asyncio.sleep` to wait between iterations, they use :py:func:`~asyncio.wait_for` to wait for the stop event with a timeout. The timeout is suppressed with :py:func:`~contextlib.suppress` so that it doesn't raise an exception. Whenever
+the event is set, :py:meth:`~asyncio.Event.wait` returns immediately, which causes :py:func:`~asyncio.wait_for` to return immediately rather than waiting for the timeout.
 
 Reference
 ---------
