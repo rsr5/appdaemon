@@ -114,13 +114,13 @@ class PersistentDict(shelve.DbfilenameShelf):
     Dict-like object that uses a Shelf to persist its contents.
     """
 
-    def __init__(self, filename: str | Path, safe: bool, *args, **kwargs):
+    def __init__(self, filename: str | Path, safe: bool, **kwargs):
         filename = Path(filename).resolve().as_posix()
         # writeback=True allows for mutating objects in place, like with a dict.
         super().__init__(filename, writeback=True)
         self.safe = safe
         self.rlock = threading.RLock()
-        self.update(*args, **kwargs)
+        self.update(new=kwargs)
 
     def __contains__(self, key):
         with self.rlock:

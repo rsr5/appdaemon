@@ -23,6 +23,9 @@ class Entity:
 
     Primarily stores the namespace, app name, and entity id in order to pre-fill calls to the AppDaemon internals.
     """
+    adapi: "ADAPI"
+    namespace: str
+    _entity_id: str
     AD: "AppDaemon" = field(init=False)
     logger: Logger = field(init=False)
     name: str  = field(init=False)
@@ -35,6 +38,7 @@ class Entity:
         self.AD = self.adapi.AD
         self.logger = self.adapi.logger
         self.name = self.adapi.name
+        self.entity_id = self._entity_id  # calls the setter to set domain/entity_name
 
     def set_namespace(self, namespace: str) -> None:
         """Set a new namespace for the Entity to use from that point forward.
@@ -569,15 +573,6 @@ class Entity:
     def state(self) -> Any:
         """Get the entity's state"""
         return self._simple_state["state"]
-
-    @property
-    def namespace(self) -> str:
-        """Get the entity's namespace name"""
-        return self._namespace
-
-    @namespace.setter
-    def namespace(self, new: str):
-        self._namespace = new
 
     @property
     def attributes(self) -> dict[str, Any]:
