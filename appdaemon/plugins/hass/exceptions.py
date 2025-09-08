@@ -1,18 +1,26 @@
-
 from dataclasses import dataclass, field
 
 from appdaemon import exceptions as ade
 
 
-class HAAuthenticationError(Exception):
+@dataclass
+class HAConnectionFailure(ade.AppDaemonException):
+    def __str__(self):
+        return "Connection to Home Assistant failed"
+
+
+@dataclass
+class HAAuthenticationError(ade.AppDaemonException):
     pass
 
 
-class HAEventsSubError(Exception):
+@dataclass
+class HAEventsSubError(ade.AppDaemonException):
     pass
 
 
-class HAFailedAuthentication(Exception):
+@dataclass
+class HAFailedAuthentication(ade.AppDaemonException):
     pass
 
 

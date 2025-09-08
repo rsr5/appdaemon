@@ -119,11 +119,13 @@ class Threading:
 
     def stop(self):
         """Stop all threads."""
-        for thread in self.threads.values():
+        for thread_name, thread in self.threads.items():
             match thread:
                 case {"queue": Queue() as q, "thread": Thread() as t}:
-                    q.put(None)
+                    self.logger.debug("Stopping %s", thread_name)
+                    q.put_nowait(None)
                     t.join(timeout=1)
+                    self.logger.debug("Joined %s", thread_name)
 
     async def get_q_update(self):
         """Updates queue sizes"""

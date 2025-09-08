@@ -2,6 +2,7 @@
 Exceptions used by appdaemon
 
 """
+
 import asyncio
 import functools
 import inspect
@@ -17,6 +18,7 @@ from logging import Logger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Type
 
+from aiohttp.client_exceptions import ClientConnectorError
 from pydantic import ValidationError
 
 if TYPE_CHECKING:
@@ -34,24 +36,27 @@ def get_callback_sig(funcref) -> str:
 @dataclass
 class AppDaemonException(Exception, ABC):
     """Abstract base class for all AppDaemon exceptions to inherit from"""
-    # msg: str
 
     def __post_init__(self):
-        if msg := getattr(self, 'msg', None):
+        if msg := getattr(self, "msg", None):
             super(Exception, self).__init__(msg)
 
 
-def exception_handler(appdaemon: "AppDaemon", loop: asyncio.AbstractEventLoop, context: dict):
+def exception_handler(appdaemon: "AppDaemon", loop: asyncio.AbstractEventLoop, context: dict[str, Any]):
     """Handler to attach to the main event loop as a backstop for any async exception"""
-    user_exception_block(
-        logging.getLogger('Error'),
-        context.get('exception'),
-        appdaemon.app_dir,
-        header='Unhandled exception in event loop'
-    )
+    match context:
+        case {"exception": Exception() as exc, "future": asyncio.Task() as task}:
+            user_exception_block(
+                logging.getLogger("Error"),
+                exception=exc,
+                app_dir=appdaemon.app_dir,
+                header=f"Unhandled exception in {task.get_name()}",
+            )
+        case _:
+            logging.getLogger("Error").error(f"Unhandled exception in event loop: {context}")
 
 
-def user_exception_block(logger: Logger, exception: AppDaemonException, app_dir: Path, header: str | None = None):
+def user_exception_block(logger: Logger, exception: Exception, app_dir: Path, header: str | None = None):
     """Generate a user-friendly block of text for an exception.
 
     Gets the whole chain of exception causes to decide what to do.
@@ -60,15 +65,15 @@ def user_exception_block(logger: Logger, exception: AppDaemonException, app_dir:
     spacing = 4
     inset = 5
     if header is not None:
-        header = f'{"=" * inset}  {header}  {"=" * (width - spacing - inset - len(header))}'
+        header = f"{'=' * inset}  {header}  {'=' * (width - spacing - inset - len(header))}"
     else:
-        header = '=' * width
+        header = "=" * width
     logger.error(header)
 
     chain = get_exception_cause_chain(exception)
 
     for i, exc in enumerate(chain):
-        indent = ' ' * i * 2
+        indent = " " * i * 2
 
         match exc:
             case AssertionError():
@@ -90,53 +95,56 @@ def user_exception_block(logger: Logger, exception: AppDaemonException, app_dir:
             case AppDaemonException():
                 for i, line in enumerate(str(exc).splitlines()):
                     if i == 0:
-                        logger.error(f'{indent}{exc.__class__.__name__}: {line}')
+                        logger.error(f"{indent}{exc.__class__.__name__}: {line}")
                     else:
-                        logger.error(f'{indent}  {line}')
+                        logger.error(f"{indent}  {line}")
 
                 if user_line := get_user_line(exc, app_dir):
                     for line, filename, func_name in list(user_line)[::-1]:
-                        logger.error(f'{indent}{filename} line {line} in {func_name}')
-            case OSError() if str(exc).endswith('address already in use'):
-                logger.error(f'{indent}{exc.__class__.__name__}: {exc}')
+                        logger.error(f"{indent}{filename} line {line} in {func_name}")
+            case ClientConnectorError():
+                logger.error(f"{indent}{exc.__class__.__name__}: {exc}")
+                break
+            case OSError() if str(exc).endswith("address already in use"):
+                logger.error(f"{indent}{exc.__class__.__name__}: {exc}")
             case NameError() | ImportError():
-                logger.error(f'{indent}{exc.__class__.__name__}: {exc}')
+                logger.error(f"{indent}{exc.__class__.__name__}: {exc}")
                 if tb := traceback.extract_tb(exc.__traceback__):
                     frame = tb[-1]
                     file = Path(frame.filename).relative_to(app_dir.parent)
-                    logger.error(f'{indent}  line {frame.lineno} in {file.name}')
-                    logger.error(f'{indent}  {frame._line.rstrip()}')
+                    logger.error(f"{indent}  line {frame.lineno} in {file.name}")
+                    logger.error(f"{indent}  {frame._line.rstrip()}")
                     error_len = frame.end_colno - frame.colno
-                    logger.error(f'{indent}  {" " * (frame.colno - 1)}{"^" * error_len}')
+                    logger.error(f"{indent}  {' ' * (frame.colno - 1)}{'^' * error_len}")
             case SyntaxError():
-                logger.error(f'{indent}{exc.__class__.__name__}: {exc}')
-                logger.error(f'{indent}  {exc.text.rstrip()}')
+                logger.error(f"{indent}{exc.__class__.__name__}: {exc}")
+                logger.error(f"{indent}  {exc.text.rstrip()}")
 
                 if exc.end_offset == 0:
                     error_len = len(exc.text) - exc.offset
                 else:
                     error_len = exc.end_offset - exc.offset
-                logger.error(f'{indent}  {" " * (exc.offset - 1)}{"^" * error_len}')
+                logger.error(f"{indent}  {' ' * (exc.offset - 1)}{'^' * error_len}")
             case _:
-                logger.error(f'{indent}{exc.__class__.__name__}: {exc}')
+                logger.error(f"{indent}{exc.__class__.__name__}: {exc}")
                 if tb := traceback.extract_tb(exc.__traceback__):
                     # filtered = (fs for fs in tb if 'appdaemon' in fs.filename)
                     # filtered = tb
                     # ss = traceback.StackSummary.from_list(filtered)
                     lines = (line for fl in tb.format() for line in fl.splitlines())
                     for line in lines:
-                        logger.error(f'{indent}{line}')
+                        logger.error(f"{indent}{line}")
 
-    logger.error('=' * width)
+    logger.error("=" * width)
 
 
 def unexpected_block(logger: Logger, exception: Exception):
-    logger.error('=' * 75)
-    logger.error(f'Unexpected error: {exception}')
+    logger.error("=" * 75)
+    logger.error(f"Unexpected error: {exception}")
     formatted = traceback.format_exc()
     for line in formatted.splitlines():
         logger.error(line)
-    logger.error('=' * 75)
+    logger.error("=" * 75)
 
 
 def get_cause_lines(chain: Iterable[Exception]) -> dict[Exception, list[traceback.FrameSummary]]:
@@ -172,7 +180,9 @@ def wrap_async(logger: Logger, app_dir: Path, header: str | None = None):
                 user_exception_block(logger, e, app_dir, header)
             except Exception as e:
                 unexpected_block(logger, e)
+
         return wrapper
+
     return decorator
 
 
@@ -186,7 +196,9 @@ def wrap_sync(logger: Logger, app_dir: Path, header: str | None = None):
                 user_exception_block(logger, e, app_dir, header)
             except Exception as e:
                 unexpected_block(logger, e)
+
         return wrapper
+
     return decorator
 
 
@@ -244,11 +256,7 @@ class ServiceException(AppDaemonException):
     domain_services: list[str]
 
     def __str__(self):
-        return (
-            f"domain '{self.domain}' exists in namespace '{self.namespace}', "
-            f"but does not contain service '{self.service}'. "
-            f"Services that exist in {self.domain}: {', '.join(self.domain_services)}"
-        )
+        return f"domain '{self.domain}' exists in namespace '{self.namespace}', but does not contain service '{self.service}'. Services that exist in {self.domain}: {', '.join(self.domain_services)}"
 
 
 @dataclass
@@ -263,6 +271,7 @@ class DomainNotSpecified(AppDaemonException):
 @dataclass
 class AppCallbackFail(AppDaemonException):
     """Base class for exceptions caused by callbacks made in user apps."""
+
     app_name: str
     funcref: functools.partial
 
@@ -270,10 +279,10 @@ class AppCallbackFail(AppDaemonException):
         base = base or f"Callback failed for app '{self.app_name}'"
 
         if args := self.funcref.args:
-            base += f'\nargs: {args}'
+            base += f"\nargs: {args}"
 
         if kwargs := self.funcref.keywords:
-            base += f'\nkwargs: {json.dumps(kwargs, indent=4, default=str)}'
+            base += f"\nkwargs: {json.dumps(kwargs, indent=4, default=str)}"
 
         return base
 
@@ -287,10 +296,10 @@ class StateCallbackFail(AppCallbackFail):
 
         # Type errors are a special case where we can give some more advice about how the callback should be written
         if isinstance(self.__cause__, TypeError):
-            res += f'\n{self.__cause__}'
-            res += '\nState callbacks should have the following signature:'
-            res += '\n  state_callback(self, entity, attribute, old, new, **kwargs)'
-            res += '\nSee https://appdaemon.readthedocs.io/en/latest/APPGUIDE.html#state-callbacks for more information'
+            res += f"\n{self.__cause__}"
+            res += "\nState callbacks should have the following signature:"
+            res += "\n  state_callback(self, entity, attribute, old, new, **kwargs)"
+            res += "\nSee https://appdaemon.readthedocs.io/en/latest/APPGUIDE.html#state-callbacks for more information"
 
         return res
 
@@ -301,8 +310,8 @@ class SchedulerCallbackFail(AppCallbackFail):
         res = super().__str__(f"Scheduled callback failed for app '{self.app_name}'")
 
         if isinstance(self.__cause__, TypeError):
-            res += f'\nCallback has signature: {get_callback_sig(self.funcref)}'
-            res += f'\n{self.__cause__}\n'
+            res += f"\nCallback has signature: {get_callback_sig(self.funcref)}"
+            res += f"\n{self.__cause__}\n"
         return res
 
 
@@ -314,10 +323,10 @@ class EventCallbackFail(AppCallbackFail):
         res = super().__str__(f"Scheduled callback failed for app '{self.app_name}'")
 
         if isinstance(self.__cause__, TypeError):
-            res += f'\n{self.__cause__}'
-            res += '\nState callbacks should have the following signature:'
-            res += '\n  my_callback(self, event_name, data, **kwargs):'
-            res += '\nSee https://appdaemon.readthedocs.io/en/latest/APPGUIDE.html#event-callbacks for more information'
+            res += f"\n{self.__cause__}"
+            res += "\nState callbacks should have the following signature:"
+            res += "\n  my_callback(self, event_name, data, **kwargs):"
+            res += "\nSee https://appdaemon.readthedocs.io/en/latest/APPGUIDE.html#event-callbacks for more information"
         return res
 
 
@@ -416,6 +425,7 @@ class InvalidThreadConfiguration(AppDaemonException):
         res += f"  pin_threads:   {self.pin_threads}\n"
         return res
 
+
 @dataclass
 class BadClassSignature(AppDaemonException):
     class_name: str
@@ -439,7 +449,7 @@ class AppDependencyError(AppDaemonException):
     dep_name: str
     dependencies: set[str]
 
-    def __str__(self, base: str = ''):
+    def __str__(self, base: str = ""):
         res = base
         res += f"\nall dependencies: {self.dependencies}"
         res += f"\n{self.rel_path}"
@@ -473,11 +483,8 @@ class FailedImport(AppDaemonException):
         res = f"Failed to import '{self.module_name}'\n"
         if isinstance(self.__cause__, ModuleNotFoundError):
             res += "Import paths:\n"
-            paths = set(
-                p for p in sys.path
-                if Path(p).is_relative_to(self.app_dir)
-            )
-            res += '\n'.join(f'  {p}' for p in sorted(paths))
+            paths = set(p for p in sys.path if Path(p).is_relative_to(self.app_dir))
+            res += "\n".join(f"  {p}" for p in sorted(paths))
         return res
 
 
@@ -521,9 +528,9 @@ class InitializationFail(AppDaemonException):
     def __str__(self):
         res = f"initialize() method failed for app '{self.app_name}'"
         if isinstance(self.__cause__, TypeError):
-            res += f'\n{self.__cause__}'
-            res += '\ninitialize() should be structured like this:'
-            res += '\n  def initialize(self):'
+            res += f"\n{self.__cause__}"
+            res += "\ninitialize() should be structured like this:"
+            res += "\n  def initialize(self):"
             # res += '\n      ...'
         return res
 
@@ -544,7 +551,7 @@ class SequenceExecutionFail(AppDaemonException):
     def __str__(self):
         res = "Failed to execute sequence:"
         if isinstance(self.bad_seq, str):
-            res += f' {self.bad_seq}'
+            res += f" {self.bad_seq}"
         return res
 
 

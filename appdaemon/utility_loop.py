@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 @dataclass
 class LoopTiming:
     """Wrapper object for recording the timing of operations in the utility loop."""
+
     _start_time: float = field(default_factory=perf_counter)
     times: dict[str, float] = field(default_factory=dict)
 
@@ -89,8 +90,7 @@ class Utility:
             self.logger.debug("Utility loop completed gracefully")
 
     async def get_uptime(self) -> timedelta:
-        """Get the uptime of AppDaemon as a timedelta.
-        """
+        """Get the uptime of AppDaemon as a timedelta."""
         if self.booted is not None:
             uptime = (await self.AD.sched.get_now()) - self.booted
             uptime = utils.parse_timedelta(round(uptime.total_seconds()))
@@ -116,8 +116,7 @@ class Utility:
         await self.AD.state.add_entity("admin", "sensor.appdaemon_booted", boot_time_str)
 
     async def _register_services(self):
-        """Register core AppDaemon services for state management, events, sequences, and admin functions.
-        """
+        """Register core AppDaemon services for state management, events, sequences, and admin functions."""
         # Register state services
         for ns in self.AD.state.list_namespaces():
             # only default, rules or it belongs to a local plugin. Don't allow for admin/appdaemon/global namespaces
@@ -163,10 +162,6 @@ class Utility:
         # Wait for all plugins to initialize
         await self.AD.plugins.wait_for_plugins()
 
-        if self.AD.stopping:
-            self.logger.debug("AppDaemon already stopping before starting utility loop")
-            return
-
         await self._register_services()
 
     async def loop(self):
@@ -179,6 +174,10 @@ class Utility:
         * Gives the plugins a chance to run their own utility functions
         * Updates performance entities
         """
+
+        if self.AD.stopping:
+            self.logger.debug("AppDaemon already stopping before starting utility loop")
+            return
 
         await self._init_loop()
 
@@ -260,12 +259,12 @@ class Utility:
 
             self.logger.debug(
                 "Util loop compute time: %s, check_app_updates: %s, other: %s",
-                timing.get_time_strs()
+                timing.get_time_strs(),
             )
             if self.AD.real_time and timing.timedelta("total") > self.AD.max_utility_skew:
                 self.logger.warning(
                     "Excessive time spent in utility loop: %s, %s in check_app_updates(), %s in other",
-                    *timing.get_time_strs()
+                    *timing.get_time_strs(),
                 )
                 if self.AD.check_app_updates_profile:
                     self.logger.info("Profile information for Utility Loop")

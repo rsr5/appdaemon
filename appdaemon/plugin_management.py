@@ -298,13 +298,9 @@ class PluginManagement:
                     # Create app entry for the plugin so we can listen_state/event
                     #
                     if self.AD.apps_enabled:
-                        self.AD.app_management.add_plugin_object(
-                            name,
-                            plugin,
-                            self.config[name].use_dictionary_unpacking
-                        )
+                        self.AD.app_management.add_plugin_object(name, plugin, self.config[name].use_dictionary_unpacking)
 
-                    self.AD.loop.create_task(plugin.get_updates())
+                    self.AD.loop.create_task(plugin.get_updates(), name=f"plugin.get_updates for {name}")
                 except Exception:
                     self.logger.warning("error loading plugin: %s - ignoring", name)
                     self.logger.warning("-" * 60)
@@ -428,8 +424,9 @@ class PluginManagement:
         self.AD.loop.create_task(
             self.AD.app_management.check_app_updates(
                 plugin_ns=namespace,
-                mode=UpdateMode.PLUGIN_FAILED
-        ))
+                mode=UpdateMode.PLUGIN_FAILED,
+            )
+        )
 
     def get_plugin_meta(self, namespace: str) -> dict:
         return self.plugin_meta.get(namespace, {})
@@ -439,14 +436,31 @@ class PluginManagement:
 
         Specifically, this waits for each of their ready events
         """
-        self.logger.info('Waiting for plugins to be ready')
-        events: Generator[asyncio.Event, None, None] = (
-            plugin['object'].ready_event for plugin in self.plugin_objs.values()
+        self.logger.info("Waiting for plugins to be ready")
+        wait_tasks = [
+            self.AD.loop.create_task(
+                plugin["object"].ready_event.wait(),
+                name=f"waiting for {plugin['name']} to be ready",
+            )
+            for plugin in self.plugin_objs.values()
+        ]
+        readiness = self.AD.loop.create_task(
+            asyncio.wait(wait_tasks, timeout=timeout, return_when=asyncio.ALL_COMPLETED),
+            name="waiting for all plugins to be ready",
         )
-        tasks = [self.AD.loop.create_task(e.wait()) for e in events]
-        if tasks:
-            await asyncio.wait(tasks, timeout=timeout)
-        self.logger.info('All plugins ready')
+
+        early_stop = self.AD.loop.create_task(self.AD.stop_event.wait(), name="waiting for appdaemon to stop")
+        await self.AD.loop.create_task(
+            asyncio.wait((readiness, early_stop), timeout=timeout, return_when=asyncio.FIRST_COMPLETED),
+            name="waiting for plugins or stop event",
+        )
+        if readiness.done():
+            # The readiness wait completed
+            self.logger.info("All plugins ready")
+        elif self.AD.stopping:
+            self.logger.info("AppDaemon stopping before all plugins ready, cancelling readiness waits")
+            for task in wait_tasks:
+                task.cancel()
 
     def get_config_for_namespace(self, namespace: str) -> PluginConfig:
         plugin_name = self.get_plugin_from_namespace(namespace)
@@ -473,7 +487,7 @@ class PluginManagement:
                 try:
                     state = await asyncio.wait_for(
                         plugin.get_complete_state(),
-                        timeout=cfg.refresh_timeout
+                        timeout=cfg.refresh_timeout,
                     )
                 except asyncio.TimeoutError:
                     self.logger.warning(
