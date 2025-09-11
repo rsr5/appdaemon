@@ -17,15 +17,13 @@ import logging.config
 import os
 import signal
 import sys
-from collections.abc import Callable, Generator
+from collections.abc import Generator
 from contextlib import ExitStack, contextmanager
 from logging import Logger
 from pathlib import Path
 from time import perf_counter
 
-
 import appdaemon.appdaemon as ad
-from .dependency_manager import DependencyManager
 import appdaemon.utils as utils
 from appdaemon import exceptions as ade
 from appdaemon.app_management import UpdateMode
@@ -34,6 +32,7 @@ from appdaemon.exceptions import NoADConfig
 from appdaemon.http import HTTP
 from appdaemon.logging import Logging
 
+from .dependency_manager import DependencyManager
 from .models.config.yaml import MainConfig
 
 logger = logging.getLogger(__name__)
@@ -52,41 +51,36 @@ except ImportError:
 
 # This dict sets up the default logging before the config has even been read.
 PRE_LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'bare': {
-            'format': "{levelname}: {message}",
-            'style': '{',
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "bare": {
+            "format": "{levelname}: {message}",
+            "style": "{",
         },
-        'full': {
-            'format': "{asctime}.{msecs:03.0f} {levelname} AppDaemon: {message}",
-            'style': '{',
-            'datefmt': '%Y-%m-%d %H:%M:%S'
-        }
-    },
-    'handlers': {
-        'stdout': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'full',
-            'stream': 'ext://sys.stdout'
+        "full": {
+            "format": "{asctime}.{msecs:03.0f} {levelname} AppDaemon: {message}",
+            "style": "{",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
         },
-        'stderr': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'bare',
-            'stream': 'ext://sys.stderr'
-        }
     },
-    'root': {
-        'level': 'INFO',
-        'handlers': ['stdout'],
+    "handlers": {
+        "stdout": {
+            "class": "logging.StreamHandler",
+            "formatter": "full",
+            "stream": "ext://sys.stdout",
+        },
+        "stderr": {
+            "class": "logging.StreamHandler",
+            "formatter": "bare",
+            "stream": "ext://sys.stderr",
+        },
     },
-    'loggers': {
-        'bare': {
-            'handlers': ['stderr'],
-            'propagate': False
-        }
-    }
+    "root": {
+        "level": "INFO",
+        "handlers": ["stdout"],
+    },
+    "loggers": {"bare": {"handlers": ["stderr"], "propagate": False}},
 }
 
 
@@ -196,7 +190,7 @@ def resolve_config_file(args: argparse.Namespace) -> tuple[Path, Path]:
     return config_file, config_dir
 
 
-def parse_config(args: argparse.Namespace, stop_function: Callable) -> MainConfig:
+def parse_config(args: argparse.Namespace) -> MainConfig:
     """Parse configuration file and return MainConfig model.
 
     Args:
@@ -228,26 +222,24 @@ def parse_config(args: argparse.Namespace, stop_function: Callable) -> MainConfi
     assert isinstance(ad_kwargs, dict), "AppDaemon configuration must be a dictionary"
 
     # Batch assign required parameters
-    ad_kwargs.update({
-        "config_dir": config_dir,
-        "config_file": config_file,
-        "write_toml": args.write_toml,
-        "stop_function": stop_function,
-    })
+    ad_kwargs.update(
+        {
+            "config_dir": config_dir,
+            "config_file": config_file,
+            "write_toml": args.write_toml,
+        }
+    )
 
     # Conditionally assign time-related parameters
     for attr in ("timewarp", "starttime", "endtime"):
-        if (value := getattr(args, attr)):
+        if value := getattr(args, attr):
             ad_kwargs[attr] = value
 
     # Set log level with fallback
     ad_kwargs["loglevel"] = args.debug or ad_kwargs.get("loglevel", "INFO")
 
     # Handle module debug efficiently
-    module_debug_cli = (
-        {arg[0]: arg[1] for arg in args.moduledebug}
-        if args.moduledebug else {}
-    )
+    module_debug_cli = {arg[0]: arg[1] for arg in args.moduledebug} if args.moduledebug else {}
 
     if isinstance(ad_kwargs.get("module_debug"), dict):
         ad_kwargs["module_debug"] |= module_debug_cli
@@ -290,16 +282,13 @@ class ADMain:
     """Pydantic model of the top-level object for the appdaemon.yaml file."""
     args: argparse.Namespace
 
-    stop_time: float = 0.0
-    """Stores the value of perf_counter() when self.stop is first called."""
-
     def __init__(self, args: argparse.Namespace) -> None:
         self.args = args
         self.http_object = None
         self._cleanup_stack = ExitStack()
 
         try:
-            self.model = parse_config(self.args, self.stop)
+            self.model = parse_config(self.args)
             self.setup_logging()
             utils.deprecation_warnings(self.model.appdaemon, self.logger)
 
@@ -319,7 +308,11 @@ class ADMain:
     def __enter__(self):
         try:
             self._cleanup_stack.enter_context(
-                ade.exception_context(self.logger, self.model.appdaemon.app_dir, header="ADMain")
+                ade.exception_context(
+                    self.logger,
+                    self.model.appdaemon.app_dir,
+                    header="ADMain",
+                )
             )
 
             if self.args.pidfile is not None and pid is not None:
@@ -409,7 +402,7 @@ class ADMain:
     def stop(self):
         """Stop AppDaemon and stop the event loop afterwards."""
         self.stop_time = perf_counter()
-        task = self.loop.create_task(self.AD.stop())
+        task = self.loop.create_task(self.AD._stop())
         task.add_done_callback(lambda _: self.loop.stop())
 
     def run(self) -> None:
@@ -460,13 +453,12 @@ class ADMain:
             self.logger.warning("-" * 60, exc_info=True)
             self.logger.warning("-" * 60)
         finally:
-            self.logger.debug('Exiting self.run_context')
+            self.logger.debug("Exiting self.run_context")
             self.loop.set_exception_handler(None)
             self.logger.info("AppDaemon is stopped.")
 
     def setup_logging(self) -> None:
-        """Set up logging configuration and timezone.
-        """
+        """Set up logging configuration and timezone."""
         log_cfg = self.model.logs.model_dump(mode="python", by_alias=True, exclude_unset=True)
         self.logging = Logging(log_cfg, self.args.debug)
         self.logger = self.logging.get_logger().getChild("_startup")
@@ -491,7 +483,7 @@ class ADMain:
             # self.logging.dump_log_config()
             yield
         finally:
-            stop_duration = perf_counter() - self.stop_time
+            stop_duration = perf_counter() - self.AD.stop_time
             self.logger.info("AppDaemon main() stopped gracefully in %s", utils.format_timedelta(stop_duration))
 
 

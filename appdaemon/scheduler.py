@@ -35,6 +35,7 @@ ELEVATION_REGEX = re.compile(r"^(?P<N>\d+(?:\.\d+)?)\s+deg\s+(?P<dir>rising|sett
 class Scheduler:
     """AppDaemon subsystem to manage internal scheduling, calculate the times of sun-based events, and parse datetime
     strings."""
+
     AD: "AppDaemon"
     logger: Logger
     error: Logger
@@ -73,6 +74,7 @@ class Scheduler:
         """Starts the scheduler, which creates the the async task for :py:meth:`~appdaemon.scheduler.Scheduler.loop` and
         adds some cleanup callbacks using the Python-native :py:meth:`~asyncio.Task.add_done_callback`.
         """
+
         def _set_inactive(task: asyncio.Task[None]) -> None:
             """
             Callback to set the scheduler as inactive when the loop task is done.
@@ -249,7 +251,7 @@ class Scheduler:
             del self.schedule[name]
 
         if not executed and not silent:
-            self.logger.warning(f"Invalid callback handle '{handle}' in " f"cancel_timer() from app {name}")
+            self.logger.warning("Invalid callback handle '%s' in cancel_timer() from app %s", handle, name)
 
         return executed
 
@@ -553,10 +555,7 @@ class Scheduler:
             try:
                 if self.endtime is not None and self.now >= self.endtime:
                     self.logger.info("End time reached, exiting")
-                    if self.AD.stop_function is not None:
-                        self.AD.stop_function()
-                    else:
-                        self.stop()
+                    self.AD.stop()
 
                 loop_now = datetime.now(pytz.utc)
                 if self.realtime:

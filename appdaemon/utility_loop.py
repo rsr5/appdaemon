@@ -175,11 +175,10 @@ class Utility:
         * Updates performance entities
         """
 
-        if self.AD.stopping:
+        if not self.AD.stopping:
+            await self._init_loop()
+        else:
             self.logger.debug("AppDaemon already stopping before starting utility loop")
-            return
-
-        await self._init_loop()
 
         if self.AD.stopping:
             # Debug message will have already been logged

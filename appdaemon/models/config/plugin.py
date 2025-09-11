@@ -94,11 +94,13 @@ class HASSConfig(PluginConfig):
     cert_path: CoercedPath | None = None
     cert_verify: bool = True
     commtype: str = "WS"
+    connect_timeout: float = 1.0
+    """Timeout used for the websocket connection to """
     q_timeout: int = 30
     ws_timeout: Annotated[
         timedelta,
         BeforeValidator(utils.parse_timedelta)
-    ] = Field(default_factory=lambda: timedelta(seconds=10))
+    ] = Field(default_factory=lambda: timedelta(seconds=10))  # fmt: skip
     """Default timeout for waiting for responses from the websocket connection"""
     suppress_log_messages: bool = False
     retry_secs: int = 5

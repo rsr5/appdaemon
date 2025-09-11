@@ -6,7 +6,6 @@ import asyncio
 import datetime
 import functools
 import json
-import signal
 import ssl
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -14,7 +13,6 @@ from time import perf_counter
 from typing import Any, Literal, Optional
 
 import aiohttp
-from aiohttp.client_exceptions import ClientConnectorError
 from aiohttp import ClientResponse, WSMsgType
 from pydantic import BaseModel
 
@@ -23,8 +21,7 @@ from appdaemon.appdaemon import AppDaemon
 from appdaemon.models.config.plugin import HASSConfig, StartupConditions
 from appdaemon.plugin_management import PluginBase
 
-from .exceptions import HAEventsSubError, HAConnectionFailure
-from .models import HASSMetaData
+from .exceptions import HAEventsSubError
 from .utils import ServiceCallStatus, hass_check, looped_coro
 
 
@@ -122,6 +119,7 @@ class HassPlugin(PluginBase):
             connector=conn,
             headers=self.config.auth_headers,
             json_serialize=utils.convert_json,
+            conn_timeout=self.config.connect_timeout,
         )
 
     async def websocket_msg_factory(self):
@@ -131,12 +129,14 @@ class HassPlugin(PluginBase):
         """
         self.start = perf_counter()
         async with self.create_session() as self.session:
-            async with self.session.ws_connect(self.config.websocket_url) as self.ws:
-                self.id = 0
-                async for msg in self.ws:
-                    self.update_perf(bytes_recv=len(msg.data), updates_recv=1)
-                    yield msg
-        self.connect_event.clear()
+            try:
+                async with self.session.ws_connect(self.config.websocket_url) as self.ws:
+                    self.id = 0
+                    async for msg in self.ws:
+                        self.update_perf(bytes_recv=len(msg.data), updates_recv=1)
+                        yield msg
+            finally:
+                self.connect_event.clear()
 
     async def match_ws_msg(self, msg: aiohttp.WSMessage) -> dict:
         """Wraps a match/case statement for the ``msg.type``"""
@@ -531,13 +531,11 @@ class HassPlugin(PluginBase):
                     await self.match_ws_msg(msg)
                     continue
                 raise ValueError
-            except ClientConnectorError as exc:
-                signal.raise_signal(signal.SIGTERM)
-                raise HAConnectionFailure from exc
-            except Exception:
+            except Exception as exc:
+                self.error.error(exc)
                 if not self.AD.stopping:
-                    self.logger.warning(
-                        "Disconnected from Home Assistant, retrying in %s seconds",
+                    self.logger.info(
+                        "Attempting reconnection in %s seconds",
                         self.config.retry_secs,
                     )
                     if self.is_ready:
@@ -548,8 +546,9 @@ class HassPlugin(PluginBase):
 
             # always do this block, no matter what
             finally:
-                # remove callback from getting local events
-                await self.AD.callbacks.clear_callbacks(self.name)
+                if not self.AD.stopping:
+                    # remove callback from getting local events
+                    await self.AD.callbacks.clear_callbacks(self.name)
 
     def _check_for_service(self, domain: str, service: str) -> bool:
         return service in self.AD.services.services.get(self.namespace, {}).get(domain, {})
@@ -589,7 +588,6 @@ class HassPlugin(PluginBase):
         resp = await self.websocket_send_json(type="get_config")
         match resp:
             case {"success": True, "result": meta}:
-                HASSMetaData.model_validate(meta)
                 if meta.get("state") == "RUNNING":
                     self.ready_event.set()
                 self.metadata = meta

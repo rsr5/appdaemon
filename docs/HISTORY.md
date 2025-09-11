@@ -17,6 +17,7 @@
 - Bumped versions in CI pipeline
     - uv version
     - Docker build/push version
+- Improved error messages for failed connections to Home Assistant
 
 **Fixes**
 

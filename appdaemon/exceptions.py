@@ -18,7 +18,7 @@ from logging import Logger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Type
 
-from aiohttp.client_exceptions import ClientConnectorError
+from aiohttp.client_exceptions import ClientConnectorError, ConnectionTimeoutError
 from pydantic import ValidationError
 
 if TYPE_CHECKING:
@@ -102,7 +102,7 @@ def user_exception_block(logger: Logger, exception: Exception, app_dir: Path, he
                 if user_line := get_user_line(exc, app_dir):
                     for line, filename, func_name in list(user_line)[::-1]:
                         logger.error(f"{indent}{filename} line {line} in {func_name}")
-            case ClientConnectorError():
+            case ClientConnectorError() | ConnectionTimeoutError():
                 logger.error(f"{indent}{exc.__class__.__name__}: {exc}")
                 break
             case OSError() if str(exc).endswith("address already in use"):

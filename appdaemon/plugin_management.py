@@ -56,8 +56,8 @@ class PluginBase(abc.ABC):
         self.name = name
         self.config = config
         self.logger = self.AD.logging.get_child(name)
-        self.diag = self.AD.logging.get_diag()
-        self.error = self.logger
+        self.diag = self.AD.logging.get_diag().getChild(name)
+        self.error = self.AD.logging.get_error().getChild(name)
         self.connect_event = asyncio.Event()
         self.ready_event = asyncio.Event()
         self.constraints = []

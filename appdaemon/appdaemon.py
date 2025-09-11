@@ -23,7 +23,6 @@ from appdaemon.thread_async import ThreadAsync
 from appdaemon.threads import Threading
 from appdaemon.utility_loop import Utility
 
-
 if TYPE_CHECKING:
     from appdaemon.http import HTTP
     from appdaemon.logging import Logging
@@ -82,7 +81,6 @@ class AppDaemon:
     """
     exit_stack: ExitStack
 
-
     # subsystems
     app_management: AppManagement
     callbacks: Callbacks
@@ -102,8 +100,10 @@ class AppDaemon:
     http: "HTTP | None" = None
     global_lock: RLock = RLock()
 
-    # shut down flag
     stop_event: asyncio.Event
+    """Flag to indicate that AppDaemon is stopping. Set by :meth:`~.appdaemon.AppDaemon.stop` and checked by subsystems."""
+    stop_time: float = 0.0
+    """Stores the value of perf_counter() when self.stop is first called."""
 
     def __init__(
         self,
@@ -120,7 +120,6 @@ class AppDaemon:
         self.logger = logging.get_logger()
         self.logging.register_ad(self)  # needs to go last to reference the config object
         self.stop_event = asyncio.Event()
-
 
         self.global_vars: Any = {}
         self.main_thread_id = threading.current_thread().ident
@@ -314,9 +313,7 @@ class AppDaemon:
         if value:
             self.timewarp = 1.0
         else:
-            raise NotImplementedError(
-                "Setting real_time to False is not supported. Set timewarp to a value other than 1.0 instead."
-            )
+            raise NotImplementedError("Setting real_time to False is not supported. Set timewarp to a value other than 1.0 instead.")
 
     @property
     def starttime(self):
@@ -335,10 +332,6 @@ class AppDaemon:
             self.logger.debug("Set stop event")
         else:
             self.stop_event.clear()
-
-    @property
-    def stop_function(self):
-        return self.config.stop_function or self.stop
 
     @property
     def thread_duration_warning_threshold(self):
