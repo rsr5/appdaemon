@@ -1,11 +1,9 @@
 # Change Log
 
-## 4.5.11
+## 4.5.12
 
 **Features**
 
-- Add skin parameter to dash_navigate function for dynamic theme switching - contributed by [Vitor](https://github.com/vitorrm)
-- Improved error handling for service calls
 - Only building python package and docker image for pushes to the dev branch
 - Filtering disabled apps from `AllAppConfig.dependency_graph()`
 - Added an assert about `pin_threads` being less than `total_threads` if both are specified
@@ -21,10 +19,6 @@
 
 **Fixes**
 
-- Parameter passing in notify()
-- Fix for `run_at_sunset()` and `run_at_sunrise()` defaults
-- Fix for production mode service call
-- Additional Scheduler API fixes
 - Config models
     - Edge case that broke the logging config
     - `persistent` gets set for namespaces if `writeback` is.
@@ -32,6 +26,21 @@
 - Type hints for async state callbacks
 - Various type hints
 - Reverted discarding of events during app initialize methods to pre-4.5  by default and added an option to turn it on if required (should fix run_in() calls with a delay of 0 during initialize, as well as listen_state() with a duration and immediate=True)
+
+## 4.5.11
+
+**Features**
+
+- Add skin parameter to dash_navigate function for dynamic theme switching - contributed by [Vitor](https://github.com/vitorrm)
+- Improved error handling for service calls
+
+
+**Fixes**
+
+- Parameter passing in notify()
+- Fix for `run_at_sunset()` and `run_at_sunrise()` defaults
+- Fix for production mode service call
+- Additional Scheduler API fixes
 
 **Breaking Changes**
 
