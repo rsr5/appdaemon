@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Annotated, Any
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 from typing_extensions import deprecated
 
 from ... import utils
@@ -15,11 +15,11 @@ from .misc import AppDaemonCLIKwargs
 class MainConfig(BaseModel):
     appdaemon: AppDaemonConfig
     hadashboard: DashboardConfig | None = None
-    admin: dict | None = None
-    old_admin: dict | None = None
-    api: dict | None = None
+    admin: dict[str, Any] | None = None
+    old_admin: dict[str, Any] | None = None
+    api: dict[str, Any] | None = None
     http: HTTPConfig | None = None
-    logs: AppDaemonFullLogConfig | None = None
+    logs: AppDaemonFullLogConfig = Field(default_factory=AppDaemonFullLogConfig)
     log: Annotated[dict | None, deprecated("'log' directive deprecated, please convert to new 'logs' syntax")] = None
 
     @classmethod

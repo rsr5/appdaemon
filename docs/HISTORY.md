@@ -2,19 +2,30 @@
 
 ## 4.5.12
 
-None
+**Features**
+
+- Only building python package and docker image for pushes to the dev branch
+- Filtering disabled apps from `AllAppConfig.dependency_graph()`
+- Added an assert about `pin_threads` being less than `total_threads` if both are specified
+- Added a `TESTING` update mode for `check_app_updates`
+- Refactored startup/shutdown
+- New timedelta/datetime/sun event string parsing
+    - Changed `ADAPI.run_at` to use new datetime parsing
+    - Changed `ADAPI.run_daily` to use new datetime parsing
+- Bumped versions in CI pipeline
+    - uv version
+    - Docker build/push version
+- Improved error messages for failed connections to Home Assistant
 
 **Fixes**
 
-None
-
-**Breaking Changes**
-
-None
-
-**Changes in Behavior**
-
-None
+- Config models
+    - Edge case that broke the logging config
+    - `persistent` gets set for namespaces if `writeback` is.
+- Debug log messages for state changes with `None` as the old state
+- Type hints for async state callbacks
+- Various type hints
+- Reverted discarding of events during app initialize methods to pre-4.5  by default and added an option to turn it on if required (should fix run_in() calls with a delay of 0 during initialize, as well as listen_state() with a duration and immediate=True)
 
 ## 4.5.11
 
@@ -22,6 +33,7 @@ None
 
 - Add skin parameter to dash_navigate function for dynamic theme switching - contributed by [Vitor](https://github.com/vitorrm)
 - Improved error handling for service calls
+
 
 **Fixes**
 
