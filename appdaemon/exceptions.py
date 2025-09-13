@@ -56,7 +56,7 @@ def exception_handler(appdaemon: "AppDaemon", loop: asyncio.AbstractEventLoop, c
             logging.getLogger("Error").error(f"Unhandled exception in event loop: {context}")
 
 
-def user_exception_block(logger: Logger, exception: Exception, app_dir: Path, header: str | None = None):
+def user_exception_block(logger: Logger, exception: Exception, app_dir: Path | None = None, header: str | None = None):
     """Generate a user-friendly block of text for an exception.
 
     Gets the whole chain of exception causes to decide what to do.
@@ -93,6 +93,7 @@ def user_exception_block(logger: Logger, exception: Exception, app_dir: Path, he
                         case _:
                             pass
             case AppDaemonException():
+                assert app_dir is not None, "app_dir is required to format exception block"
                 for i, line in enumerate(str(exc).splitlines()):
                     if i == 0:
                         logger.error(f"{indent}{exc.__class__.__name__}: {line}")
@@ -108,6 +109,7 @@ def user_exception_block(logger: Logger, exception: Exception, app_dir: Path, he
             case OSError() if str(exc).endswith("address already in use"):
                 logger.error(f"{indent}{exc.__class__.__name__}: {exc}")
             case NameError() | ImportError():
+                assert app_dir is not None, "app_dir is required to format exception block"
                 logger.error(f"{indent}{exc.__class__.__name__}: {exc}")
                 if tb := traceback.extract_tb(exc.__traceback__):
                     frame = tb[-1]
