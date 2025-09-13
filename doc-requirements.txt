@@ -64,6 +64,8 @@ idna==3.10
     #   yarl
 imagesize==1.4.1
     # via sphinx
+iniconfig==2.1.0
+    # via pytest
 iso8601==2.1.0
     # via appdaemon (pyproject.toml)
 jinja2==3.1.6
@@ -90,11 +92,15 @@ myst-parser==4.0.1
 orderly-set==5.5.0
     # via deepdiff
 packaging==25.0
-    # via sphinx
+    # via
+    #   pytest
+    #   sphinx
 paho-mqtt==2.1.0
     # via appdaemon (pyproject.toml)
 pid==3.0.4
     # via appdaemon (pyproject.toml)
+pluggy==1.6.0
+    # via pytest
 propcache==0.3.2
     # via
     #   aiohttp
@@ -106,8 +112,15 @@ pydantic-core==2.27.2
 pygments==2.19.2
     # via
     #   appdaemon (pyproject.toml)
+    #   pytest
     #   sphinx
     #   sphinx-tabs
+pytest==8.4.2
+    # via
+    #   appdaemon (pyproject.toml)
+    #   pytest-asyncio
+pytest-asyncio==1.2.0
+    # via appdaemon (pyproject.toml)
 python-dateutil==2.9.0.post0
     # via appdaemon (pyproject.toml)
 python-engineio==4.12.2
@@ -180,6 +193,7 @@ typing-extensions==4.15.0
     #   anyio
     #   pydantic
     #   pydantic-core
+    #   pytest-asyncio
     #   starlette
 urllib3==2.5.0
     # via requests
