@@ -68,18 +68,18 @@ Reference
 ---------
 
 Startup Tests
-^^^^^^^^^^^^^
+~~~~~~~~~~~~~
 
 .. autofunction:: tests.functional.test_startup.test_hello_world
 
 Event Tests
-^^^^^^^^^^^
+~~~~~~~~~~~
 
 .. autoclass:: tests.functional.test_event.TestEventCallback
    :members:
 
 State Tests
-^^^^^^^^^^^
+~~~~~~~~~~~
 
 .. autoclass:: tests.functional.test_state.TestStateCallback
    :members:
