@@ -401,8 +401,8 @@ class ADMain:
 
     def stop(self):
         """Stop AppDaemon and stop the event loop afterwards."""
-        self.stop_time = perf_counter()
-        task = self.loop.create_task(self.AD._stop())
+        self.AD.stop_time = perf_counter()
+        task = self.loop.create_task(self.AD.stop())
         task.add_done_callback(lambda _: self.loop.stop())
 
     def run(self) -> None:

@@ -8,6 +8,7 @@ from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime, time, timedelta, timezone
 from logging import Logger
+from time import perf_counter
 from typing import TYPE_CHECKING, Any, Callable
 
 import pytz
@@ -555,7 +556,9 @@ class Scheduler:
             try:
                 if self.endtime is not None and self.now >= self.endtime:
                     self.logger.info("End time reached, exiting")
-                    self.AD.stop()
+                    self.AD.stop_time = perf_counter()
+                    task = self.AD.loop.create_task(self.AD.stop())
+                    task.add_done_callback(lambda _: self.AD.loop.stop())
 
                 loop_now = datetime.now(pytz.utc)
                 if self.realtime:
