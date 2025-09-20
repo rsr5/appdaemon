@@ -4,10 +4,10 @@ import datetime
 import importlib
 import sys
 import traceback
-from collections.abc import Generator, Iterable, Mapping
+from collections.abc import Generator, Iterable
 from logging import Logger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Type
+from typing import TYPE_CHECKING, Any, Type
 
 from . import utils
 from .app_management import UpdateMode
@@ -29,8 +29,8 @@ class PluginBase(abc.ABC):
     config: PluginConfig
     logger: Logger
     diag: Logger
-    plugin_meta: Dict[str, Dict]
-    plugins: Dict[str, Dict]
+    plugin_meta: dict[str, dict]
+    plugins: dict[str, dict]
 
     bytes_sent: int
     bytes_recv: int
@@ -51,20 +51,16 @@ class PluginBase(abc.ABC):
     loaded.
     """
 
-    stopping: bool = False
-    """Flag that indicates whether AppDaemon is currently shutting down."""
-
     def __init__(self, ad: "AppDaemon", name: str, config: PluginConfig):
         self.AD = ad
         self.name = name
         self.config = config
         self.logger = self.AD.logging.get_child(name)
-        self.diag = self.AD.logging.get_diag()
-        self.error = self.logger
+        self.diag = self.AD.logging.get_diag().getChild(name)
+        self.error = self.AD.logging.get_error().getChild(name)
         self.connect_event = asyncio.Event()
         self.ready_event = asyncio.Event()
         self.constraints = []
-        self.stopping = False
 
         # Performance Data
         self.bytes_sent = 0
@@ -175,7 +171,7 @@ class PluginBase(abc.ABC):
                 namespace=ns,
                 state=state,
                 persist=self.config.persist_entities
-            )
+            )  # fmt: skip
 
             # This accounts for the case where there's not a plugin associated with the object
             if po := self.AD.plugins.plugin_objs.get(ns):
@@ -202,7 +198,7 @@ class PluginBase(abc.ABC):
                 self.AD.app_management.check_app_updates(
                     plugin_ns=self.namespace,
                     mode=UpdateMode.PLUGIN_RESTART
-            ))
+            ))  # fmt: skip
 
 
 class PluginManagement:
@@ -220,12 +216,11 @@ class PluginManagement:
     error: Logger
     """Standard python logger named ``Error``
     """
-    stopping: bool
-    plugin_meta: Dict[str, dict[str, Any]]
+    plugin_meta: dict[str, dict[str, Any]]
     """Dictionary storing the metadata for the loaded plugins.
     {<namespace>: <metadata dict>}
     """
-    plugin_objs: Dict[str, PluginBase]
+    plugin_objs: dict[str, dict[str, PluginBase | bool | str]]
     """Dictionary storing the instantiated plugin objects.
     ``{<namespace>: {
     "object": <PluginBase>,
@@ -235,14 +230,10 @@ class PluginManagement:
     """
     required_meta = ["latitude", "longitude", "elevation", "time_zone"]
     last_plugin_state: dict[str, datetime.datetime]
-    stopping: bool
-    """Flag for if PluginManagement should be shutting down
-    """
 
-    def __init__(self, ad: "AppDaemon", config: Mapping[str, PluginConfig]):
+    def __init__(self, ad: "AppDaemon", config: dict[str, PluginConfig]):
         self.AD = ad
         self.config = config
-        self.stopping = False
 
         self.plugin_meta = {}
         self.plugin_objs = {}
@@ -254,21 +245,25 @@ class PluginManagement:
         self.error = self.AD.logging.get_error()
 
         # Add built in plugins to path
-        for plugin in self.plugin_paths:
-            sys.path.insert(0, plugin.as_posix())
-            plugin_file = plugin / f"{plugin.name}plugin.py"
+        for plugin_path in self.plugin_paths:
+            sys.path.insert(0, plugin_path.as_posix())
+            plugin_file = plugin_path / f"{plugin_path.name}plugin.py"
             if not plugin_file.exists():
                 self.logger.warning(f"Plugin module {plugin_file} does not exist")
 
         # Now custom plugins
         custom_plugin_dir = self.AD.config_dir / "custom_plugins"
         if custom_plugin_dir.exists() and custom_plugin_dir.is_dir():
-            custom_plugins = [p for p in custom_plugin_dir.iterdir() if p.is_dir(follow_symlinks=True) and not p.name.startswith("_")]
+            custom_plugins = [
+                p for p in custom_plugin_dir.iterdir()
+                if p.is_dir()
+                and not p.name.startswith("_")
+            ]  # fmt: skip
         else:
             custom_plugins = []
-        for plugin in custom_plugins:
-            sys.path.insert(0, plugin.as_posix())
-            assert (plugin / f"{plugin.name}plugin.py").exists(), "Plugin module does not exist"
+        for plugin_path in custom_plugins:
+            sys.path.insert(0, plugin_path.as_posix())
+            assert (plugin_path / f"{plugin_path.name}plugin.py").exists(), "Plugin module does not exist"
 
         # get the names up here to avoid some unnecessary iteration later
         built_ins = self.plugin_names
@@ -302,14 +297,10 @@ class PluginManagement:
                     #
                     # Create app entry for the plugin so we can listen_state/event
                     #
-                    if not self.AD.config.disable_apps:
-                        self.AD.app_management.add_plugin_object(
-                            name,
-                            plugin,
-                            self.config[name].use_dictionary_unpacking
-                        )
+                    if self.AD.apps_enabled:
+                        self.AD.app_management.add_plugin_object(name, plugin, self.config[name].use_dictionary_unpacking)
 
-                    self.AD.loop.create_task(plugin.get_updates())
+                    self.AD.loop.create_task(plugin.get_updates(), name=f"plugin.get_updates for {name}")
                 except Exception:
                     self.logger.warning("error loading plugin: %s - ignoring", name)
                     self.logger.warning("-" * 60)
@@ -335,20 +326,30 @@ class PluginManagement:
     def namespaces(self) -> list[str]:
         return self.AD.namespaces
 
-    def stop(self):
-        self.logger.debug("stop() called for plugin_management")
-        self.stopping = True
-        for plugin in self.plugin_objs:
-            stop_func = self.plugin_objs[plugin]["object"].stop
+    async def stop(self):
+        """Stops all the plugins and clears the callbacks for them.
 
-            if asyncio.iscoroutinefunction(stop_func):
-                self.AD.loop.create_task(stop_func())
-            else:
-                stop_func()
+        This needs to be async in order to wait for the apps to all be cleared before stopping the plugins.
+        """
+        self.logger.debug("Stopping plugins")
+        for plugin, cfg in self.plugin_objs.items():
+            match cfg:
+                case {"object": PluginBase() as plugin, "active": True, "name": str() as name}:
+                    stop_func = getattr(plugin, "stop", None)
+                    if not callable(stop_func):
+                        if stop_func is not None:
+                            self.logger.warning("Plugin '%s' has an invalid stop() method", stop_func)
+                        continue
 
-            name = self.plugin_objs[plugin]["name"]
-            self.AD.loop.create_task(self.AD.callbacks.clear_callbacks(name))
-            self.AD.futures.cancel_futures(name)
+                    self.logger.debug("Stopping plugin '%s'", name)
+                    if asyncio.iscoroutinefunction(stop_func):
+                        await stop_func()
+                    else:
+                        stop_func()
+
+                    await self.AD.callbacks.clear_callbacks(name)
+                    self.AD.futures.cancel_futures(name)
+        self.logger.info("All plugins stopped gracefully")
 
     def run_plugin_utility(self):
         for plugin in self.plugin_objs:
@@ -423,8 +424,9 @@ class PluginManagement:
         self.AD.loop.create_task(
             self.AD.app_management.check_app_updates(
                 plugin_ns=namespace,
-                mode=UpdateMode.PLUGIN_FAILED
-        ))
+                mode=UpdateMode.PLUGIN_FAILED,
+            )
+        )
 
     def get_plugin_meta(self, namespace: str) -> dict:
         return self.plugin_meta.get(namespace, {})
@@ -434,14 +436,31 @@ class PluginManagement:
 
         Specifically, this waits for each of their ready events
         """
-        self.logger.info('Waiting for plugins to be ready')
-        events: Generator[asyncio.Event, None, None] = (
-            plugin['object'].ready_event for plugin in self.plugin_objs.values()
+        self.logger.info("Waiting for plugins to be ready")
+        wait_tasks = [
+            self.AD.loop.create_task(
+                plugin["object"].ready_event.wait(),
+                name=f"waiting for {plugin['name']} to be ready",
+            )
+            for plugin in self.plugin_objs.values()
+        ]
+        readiness = self.AD.loop.create_task(
+            asyncio.wait(wait_tasks, timeout=timeout, return_when=asyncio.ALL_COMPLETED),
+            name="waiting for all plugins to be ready",
         )
-        tasks = [self.AD.loop.create_task(e.wait()) for e in events]
-        if tasks:
-            await asyncio.wait(tasks, timeout=timeout)
-        self.logger.info('All plugins ready')
+
+        early_stop = self.AD.loop.create_task(self.AD.stop_event.wait(), name="waiting for appdaemon to stop")
+        await self.AD.loop.create_task(
+            asyncio.wait((readiness, early_stop), timeout=timeout, return_when=asyncio.FIRST_COMPLETED),
+            name="waiting for plugins or stop event",
+        )
+        if readiness.done():
+            # The readiness wait completed
+            self.logger.info("All plugins ready")
+        elif self.AD.stopping:
+            self.logger.info("AppDaemon stopping before all plugins ready, cancelling readiness waits")
+            for task in wait_tasks:
+                task.cancel()
 
     def get_config_for_namespace(self, namespace: str) -> PluginConfig:
         plugin_name = self.get_plugin_from_namespace(namespace)
@@ -468,7 +487,7 @@ class PluginManagement:
                 try:
                     state = await asyncio.wait_for(
                         plugin.get_complete_state(),
-                        timeout=cfg.refresh_timeout
+                        timeout=cfg.refresh_timeout,
                     )
                 except asyncio.TimeoutError:
                     self.logger.warning(
