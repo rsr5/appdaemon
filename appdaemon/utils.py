@@ -16,14 +16,13 @@ import shelve
 import sys
 import threading
 import traceback
-from collections.abc import Awaitable, Generator, Iterable
+from collections.abc import Awaitable, Generator, Iterable, Mapping
 from datetime import datetime, time, timedelta, tzinfo
 from functools import wraps
 from logging import Logger
 from pathlib import Path
 from time import perf_counter
-from typing import (TYPE_CHECKING, Any, Callable, Coroutine, Literal,
-                    ParamSpec, Protocol, TypeVar)
+from typing import TYPE_CHECKING, Any, Callable, Coroutine, Literal, ParamSpec, Protocol, TypeVar
 
 import dateutil.parser
 import tomli
@@ -1071,28 +1070,32 @@ def time_str(start: float, now: float | None = None) -> str:
     return format_timedelta((now or perf_counter()) - start)
 
 
-def clean_kwargs(**kwargs):
+def clean_kwargs(**kwargs: Any) -> Generator[tuple[str, Any]]:
     """Converts everything to strings and removes null values"""
 
-    def clean_value(val: Any) -> str:
+    def _clean_value(val: int | float | str | bool | datetime) -> str:
         match val:
+            case bool():
+                return str(val).lower()
             case int() | float() | str():
-                return val
+                return str(val)
             case datetime():
                 return val.isoformat()
-            case dict():
-                return clean_kwargs(**val)
-            case Iterable():
-                return [clean_value(v) for v in val]
-            case _:
-                return str(val)
 
-    kwargs = {
-        k: clean_value(v)
-        for k, v in kwargs.items()
-        if v is not None
-    }  # fmt: skip
-    return kwargs
+    for key, val in kwargs.items():
+        match val:
+            case None:
+                continue
+            case int() | float() | str() | bool() | datetime():
+                # This case needs to be before the Iterable case because strings are iterable
+                yield key, _clean_value(val)
+            case Mapping():
+                # This case needs to be before the Iterable case because Mappings like dicts are iterable
+                yield key, dict(clean_kwargs(**val))
+            case Iterable():
+                yield key, list(map(_clean_value, val))
+            case _:
+                raise TypeError(f"Unsupported type for key '{key}': {type(val)}")
 
 
 def make_endpoint(base: str, endpoint: str) -> str:

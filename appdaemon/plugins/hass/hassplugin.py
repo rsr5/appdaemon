@@ -340,7 +340,7 @@ class HassPlugin(PluginBase):
         Returns:
             A dict containing the response from Home Assistant.
         """
-        request = utils.clean_kwargs(**request)
+        request = dict(utils.clean_kwargs(**request))
 
         if not self.connect_event.is_set():
             self.logger.debug("Not connected to websocket, skipping JSON send.")
@@ -426,7 +426,9 @@ class HassPlugin(PluginBase):
         Returns:
             dict | None: _description_
         """
-        kwargs = utils.clean_kwargs(**kwargs)
+        kwargs = {k: v for k, v in utils.clean_kwargs(**kwargs) if v != "false"}
+        # Filter out values that are supposed to be false here instead of in clean_kwargs so that False values are still
+        # allowed in websocket requests
         url = utils.make_endpoint(self.config.ha_url, endpoint)
 
         try:
