@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 
+
 from appdaemon import exceptions as ade
 
 
@@ -16,7 +17,11 @@ class HAAuthenticationError(ade.AppDaemonException):
 
 @dataclass
 class HAEventsSubError(ade.AppDaemonException):
-    pass
+    code: int
+    msg: str
+
+    def __str__(self) -> str:
+        return f"{self.code}: {self.msg}"
 
 
 @dataclass

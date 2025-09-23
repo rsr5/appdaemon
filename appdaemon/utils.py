@@ -1071,22 +1071,31 @@ def time_str(start: float, now: float | None = None) -> str:
 
 
 def clean_kwargs(**kwargs: Any) -> Generator[tuple[str, Any]]:
-    """Converts everything to strings and removes null values"""
+    """Recursively clean a dict of kwargs.
 
-    def _clean_value(val: int | float | str | bool | datetime) -> str:
+    Conversions:
+        - None values are removed
+        - datetime values are converted to ISO format strings
+        - bool values are converted to lowercase strings
+        - int, float, and str values are converted to strings
+        - Iterable values (like lists and tuples) are converted to lists of cleaned values
+        - Mapping values (like dicts) are converted to dicts of cleaned key-value pairs
+    """
+
+    def _clean_value(val: bool | datetime | Any) -> str:
         match val:
-            case bool():
-                return str(val).lower()
-            case int() | float() | str():
-                return str(val)
             case datetime():
                 return val.isoformat()
+            case bool():
+                return str(val).lower()
+            case _:
+                return str(val)
 
     for key, val in kwargs.items():
         match val:
             case None:
                 continue
-            case int() | float() | str() | bool() | datetime():
+            case str():
                 # This case needs to be before the Iterable case because strings are iterable
                 yield key, _clean_value(val)
             case Mapping():
@@ -1095,7 +1104,18 @@ def clean_kwargs(**kwargs: Any) -> Generator[tuple[str, Any]]:
             case Iterable():
                 yield key, list(map(_clean_value, val))
             case _:
-                raise TypeError(f"Unsupported type for key '{key}': {type(val)}")
+                yield key, _clean_value(val)
+
+
+def clean_http_kwargs(**kwargs: Any) -> Generator[tuple[str, Any]]:
+    """Recursively cleans the kwarg dict to prepare it for use in HTTP requests."""
+    for key, val in clean_kwargs(**kwargs):
+        match val:
+            case "false" | None:
+                # Filter out values that are False or None
+                continue
+            case _:
+                yield key, val
 
 
 def make_endpoint(base: str, endpoint: str) -> str:

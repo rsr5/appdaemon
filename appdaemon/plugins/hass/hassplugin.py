@@ -195,9 +195,9 @@ class HassPlugin(PluginBase):
                     utils.format_timedelta(ad_duration),
                 )
             case {"success": False, "error": {"code": code, "message": msg}}:
-                raise HAEventsSubError(f"{code}: {msg}")
+                raise HAEventsSubError(code, msg)
             case _:
-                raise HAEventsSubError(f"Unknown response from subscribe_events: {res}")
+                raise HAEventsSubError(-1, f"Unknown response from subscribe_events: {res}")
 
         config_coro = looped_coro(self.get_hass_config, self.config.config_sleep_time)
         self.AD.loop.create_task(config_coro(self))
@@ -426,9 +426,7 @@ class HassPlugin(PluginBase):
         Returns:
             dict | None: _description_
         """
-        kwargs = {k: v for k, v in utils.clean_kwargs(**kwargs) if v != "false"}
-        # Filter out values that are supposed to be false here instead of in clean_kwargs so that False values are still
-        # allowed in websocket requests
+        kwargs = dict(utils.clean_http_kwargs(**kwargs))
         url = utils.make_endpoint(self.config.ha_url, endpoint)
 
         try:

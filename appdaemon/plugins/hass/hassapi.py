@@ -677,9 +677,9 @@ class Hass(ADBase, ADAPI):
         days: int | None = None,
         start_time: datetime | str | None = None,
         end_time: datetime | str | None = None,
-        minimal_response: bool | None = None,
-        no_attributes: bool | None = None,
-        significant_changes_only: bool | None = None,
+        minimal_response: bool = False,
+        no_attributes: bool = False,
+        significant_changes_only: bool = False,
         callback: Callable | None = None,
         namespace: str | None = None,
     ) -> list[list[dict[str, Any]]] | None:
