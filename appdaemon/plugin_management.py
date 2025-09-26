@@ -225,7 +225,7 @@ class PluginManagement:
     """Dictionary storing the metadata for the loaded plugins.
     {<namespace>: <metadata dict>}
     """
-    plugin_objs: Dict[str, PluginBase]
+    plugin_objs: Dict[str, dict[str, PluginBase | bool | str]]
     """Dictionary storing the instantiated plugin objects.
     ``{<namespace>: {
     "object": <PluginBase>,
@@ -310,7 +310,11 @@ class PluginManagement:
                         )
 
                     self.AD.loop.create_task(plugin.get_updates())
+                except ModuleNotFoundError:
+                    self.error.warning(f"Error loading plugin: {name} - ignoring")
+                    # ade.user_exception_block(self.error, exc, self.AD.app_dir, f"Error loading plugin: {name} - ignoring")
                 except Exception:
+                    self.logger.warning("-" * 60)
                     self.logger.warning("error loading plugin: %s - ignoring", name)
                     self.logger.warning("-" * 60)
                     self.logger.warning(traceback.format_exc())
@@ -450,9 +454,10 @@ class PluginManagement:
     @property
     def active_plugins(self) -> Generator[tuple[PluginBase, PluginConfig], None, None]:
         for namespace, plugin_cfg in self.plugin_objs.items():
-            if plugin_cfg["active"]:
-                cfg = self.get_config_for_namespace(namespace)
-                yield plugin_cfg["object"], cfg
+            match plugin_cfg:
+                case {"object": PluginBase() as obj, "active": True}:
+                    cfg = self.get_config_for_namespace(namespace)
+                    yield obj, cfg
 
     async def refresh_update_time(self, plugin_name: str):
         """Updates the internal time for when the plugin's state was last updated"""

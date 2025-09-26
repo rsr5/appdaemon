@@ -50,7 +50,7 @@ def exception_handler(appdaemon: "AppDaemon", loop: asyncio.AbstractEventLoop, c
     )
 
 
-def user_exception_block(logger: Logger, exception: AppDaemonException, app_dir: Path, header: str | None = None):
+def user_exception_block(logger: Logger, exception: BaseException, app_dir: Path, header: str | None = None):
     """Function to generate a user-friendly block of text for an exception. Gets the whole chain of exception causes to decide what to do.
     """
     width = 75
