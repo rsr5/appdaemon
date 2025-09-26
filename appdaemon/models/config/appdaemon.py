@@ -11,7 +11,7 @@ from typing_extensions import deprecated
 
 from appdaemon.version import __version__
 
-from .common import CoercedPath, CoercedRelPath, TimeType
+from .common import CoercedPath, CoercedRelPath, ParsedTimedelta
 from .misc import FilterConfig, NamespaceConfig
 from .plugin import HASSConfig, MQTTConfig, PluginConfig
 
@@ -64,11 +64,11 @@ class AppDaemonConfig(BaseModel, extra="allow"):
     api_ssl_key: CoercedPath | None = None
     stop_function: Callable | None = None
 
-    utility_delay: TimeType = timedelta(seconds=1)
-    admin_delay: TimeType = timedelta(seconds=1)
+    utility_delay: ParsedTimedelta = timedelta(seconds=1)
+    admin_delay: ParsedTimedelta = timedelta(seconds=1)
     plugin_performance_update: int = 10
     """How often in seconds to update the admin entities with the plugin performance data"""
-    max_utility_skew: TimeType = timedelta(seconds=2)
+    max_utility_skew: ParsedTimedelta = timedelta(seconds=2)
     check_app_updates_profile: bool = False
     production_mode: bool = False
     invalid_config_warnings: bool = True
@@ -77,7 +77,7 @@ class AppDaemonConfig(BaseModel, extra="allow"):
     qsize_warning_threshold: int = 50
     qsize_warning_step: int = 60
     qsize_warning_iterations: int = 10
-    internal_function_timeout: TimeType = timedelta(seconds=60)
+    internal_function_timeout: ParsedTimedelta = timedelta(seconds=60)
     """Timeout for internal function calls. This determines how long apps can wait in their thread for an async function
     to complete in the main thread."""
     use_dictionary_unpacking: Annotated[bool, deprecated("This option is no longer necessary")] = False

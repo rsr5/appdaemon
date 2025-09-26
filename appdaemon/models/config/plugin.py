@@ -10,7 +10,7 @@ from typing_extensions import deprecated
 
 from appdaemon import utils
 
-from .common import CoercedPath
+from .common import CoercedPath, ParsedTimedelta
 
 
 class PluginConfig(BaseModel, extra="allow"):
@@ -19,9 +19,9 @@ class PluginConfig(BaseModel, extra="allow"):
     """Gets set by a field_validator in the AppDaemonConfig"""
     disable: bool = False
     persist_entities: bool = False
-    refresh_delay: Annotated[timedelta, BeforeValidator(lambda v: timedelta(minutes=v))] = timedelta(minutes=10)
-    """Delay between refreshes of the complete plugin state in the utility loop. The units are in minutes."""
-    refresh_timeout: int = 30
+    refresh_delay: ParsedTimedelta = timedelta(minutes=10)
+    """Delay between refreshes of the complete plugin state in the utility loop."""
+    refresh_timeout: ParsedTimedelta = timedelta(seconds=30)
     use_dictionary_unpacking: bool = True
 
     # Used by the AppDaemon internals to import the plugins.
@@ -30,8 +30,8 @@ class PluginConfig(BaseModel, extra="allow"):
     api_module: str = None
     api_class: str = None
 
-    connect_timeout: int | float = 1.0
-    reconnect_delay: int | float = 5.0
+    connect_timeout: ParsedTimedelta = timedelta(seconds=1)
+    reconnect_delay: ParsedTimedelta = timedelta(seconds=5)
 
     namespace: str = "default"
     namespaces: list[str] = Field(default_factory=list)

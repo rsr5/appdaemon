@@ -9,7 +9,7 @@ from appdaemon.utils import parse_timedelta
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 BoolNum = Annotated[bool, BeforeValidator(lambda v: False if int(v) == 0 else True)]
-TimeType = Annotated[timedelta, BeforeValidator(parse_timedelta), PlainSerializer(lambda td: td.total_seconds())]
+ParsedTimedelta = Annotated[timedelta, BeforeValidator(parse_timedelta), PlainSerializer(lambda td: td.total_seconds())]
 
 
 CoercedPath = Annotated[Path, BeforeValidator(lambda p: Path(p).resolve())]
