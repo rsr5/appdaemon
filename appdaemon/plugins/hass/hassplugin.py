@@ -195,9 +195,9 @@ class HassPlugin(PluginBase):
                     utils.format_timedelta(ad_duration),
                 )
             case {"success": False, "error": {"code": code, "message": msg}}:
-                raise HAEventsSubError(f"{code}: {msg}")
+                raise HAEventsSubError(code, msg)
             case _:
-                raise HAEventsSubError(f"Unknown response from subscribe_events: {res}")
+                raise HAEventsSubError(-1, f"Unknown response from subscribe_events: {res}")
 
         config_coro = looped_coro(self.get_hass_config, self.config.config_sleep_time)
         self.AD.loop.create_task(config_coro(self))
@@ -340,7 +340,7 @@ class HassPlugin(PluginBase):
         Returns:
             A dict containing the response from Home Assistant.
         """
-        request = utils.clean_kwargs(**request)
+        request = dict(utils.clean_kwargs(**request))
 
         if not self.connect_event.is_set():
             self.logger.debug("Not connected to websocket, skipping JSON send.")
@@ -426,7 +426,7 @@ class HassPlugin(PluginBase):
         Returns:
             dict | None: _description_
         """
-        kwargs = utils.clean_kwargs(**kwargs)
+        kwargs = dict(utils.clean_http_kwargs(**kwargs))
         url = utils.make_endpoint(self.config.ha_url, endpoint)
 
         try:
@@ -434,44 +434,47 @@ class HassPlugin(PluginBase):
                 bytes_sent=len(url) + len(json.dumps(kwargs).encode("utf-8")),
                 requests_sent=1,
             )
+
             self.logger.debug(f"Hass {method.upper()} {endpoint}: {kwargs}")
             match method.lower():
                 case "get":
-                    coro = self.session.get(url=url, params=kwargs)
+                    http_method = functools.partial(self.session.get, params=kwargs)
                 case "post":
-                    coro = self.session.post(url=url, json=kwargs)
+                    http_method = functools.partial(self.session.post, json=kwargs)
                 case "delete":
-                    coro = self.session.delete(url=url, json=kwargs)
+                    http_method = functools.partial(self.session.delete, json=kwargs)
                 case _:
                     raise ValueError(f"Invalid method: {method}")
+
             timeout = utils.parse_timedelta(timeout)
-            resp = await asyncio.wait_for(coro, timeout=timeout.total_seconds())
+            client_timeout = aiohttp.ClientTimeout(total=timeout.total_seconds())
+            async with http_method(url=url, timeout=client_timeout) as resp:
+                self.logger.debug(f"HTTP {method.upper()} {resp.url}")
+                self.update_perf(bytes_recv=resp.content_length, updates_recv=1)
+                match resp.status:
+                    case 200 | 201:
+                        if endpoint.endswith("template"):
+                            return await resp.text()
+                        else:
+                            return await resp.json()
+                    case 400 | 401 | 403 | 404 | 405:
+                        try:
+                            msg = (await resp.json())["message"]
+                        except Exception:
+                            msg = await resp.text()
+                        self.logger.error(f"Bad response from {url}: {msg}")
+                    case 500 | 502:
+                        text = await resp.text()
+                        self.logger.error("Internal server error %s: %s", url, text)
+                    case _:
+                        raise NotImplementedError("Unhandled error: HTTP %s", resp.status)
+                return resp
         except asyncio.TimeoutError:
             self.logger.error("Timed out waiting for %s", url)
         except asyncio.CancelledError:
             self.logger.debug("Task cancelled during %s", method.upper())
         except aiohttp.ServerDisconnectedError:
             self.logger.error("HASS disconnected unexpectedly during %s to %s", method.upper(), url)
-        else:
-            self.update_perf(bytes_recv=resp.content_length, updates_recv=1)
-            match resp.status:
-                case 200 | 201:
-                    if endpoint.endswith("template"):
-                        return await resp.text()
-                    else:
-                        return await resp.json()
-                case 400 | 401 | 403 | 404 | 405:
-                    try:
-                        msg = (await resp.json())["message"]
-                    except Exception:
-                        msg = await resp.text()
-                    self.logger.error(f"Bad response from {url}: {msg}")
-                case 500 | 502:
-                    text = await resp.text()
-                    self.logger.error("Internal server error %s: %s", url, text)
-                case _:
-                    raise NotImplementedError("Unhandled error: HTTP %s", resp.status)
-            return resp
 
     async def wait_for_conditions(self, conditions: StartupConditions | None) -> None:
         if conditions is None:
