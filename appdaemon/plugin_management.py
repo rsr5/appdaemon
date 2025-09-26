@@ -473,7 +473,7 @@ class PluginManagement:
                 try:
                     state = await asyncio.wait_for(
                         plugin.get_complete_state(),
-                        timeout=cfg.refresh_timeout
+                        timeout=cfg.refresh_timeout.total_seconds(),
                     )
                 except asyncio.TimeoutError:
                     self.logger.warning(

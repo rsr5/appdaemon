@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, RootModel
 
-from .common import CoercedPath, LogLevel, TimeType
+from .common import LogPath, LogLevel, TimeType
 
 SYSTEM_LOG_NAME_MAP = {
     "main_log": 'AppDaemon',
@@ -14,7 +14,7 @@ SYSTEM_LOG_NAME_MAP = {
 
 
 class AppDaemonLogConfig(BaseModel):
-    filename: CoercedPath = "STDOUT"
+    filename: LogPath = "STDOUT"
     name: str | None = None
     level: LogLevel = 'INFO'
     log_generations: int = 3

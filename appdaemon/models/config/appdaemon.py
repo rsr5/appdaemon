@@ -5,28 +5,30 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import pytz
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Discriminator, Field, RootModel, SecretStr, Tag, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Discriminator, Field, PlainSerializer, RootModel, SecretStr, Tag, field_validator, model_validator
 from pytz.tzinfo import BaseTzInfo
 from typing_extensions import deprecated
 
-from appdaemon import utils
 from appdaemon.version import __version__
 
-from .common import CoercedPath
+from .common import CoercedPath, CoercedRelPath, TimeType
 from .misc import FilterConfig, NamespaceConfig
 from .plugin import HASSConfig, MQTTConfig, PluginConfig
 
 
-def plugin_discriminator(plugin):
-    if isinstance(plugin, dict):
-        type_ = plugin["type"].lower()
-    else:
-        type_ = plugin.type
+def plugin_discriminator(plugin: dict[str, Any] | PluginConfig) -> Literal["hass", "mqtt", "custom"]:
+    match plugin:
+        case {"type": str(t)} | PluginConfig(type=str(t)):
+            match t.lower():
+                case ("hass" | "mqtt" | "custom") as type_:
+                    return type_
+    return "custom"
 
-    if type_ in ("hass", "mqtt"):
-        return type_
-    else:
-        return "generic"
+
+DiscriminatedPluginConfig = Annotated[
+    Annotated[HASSConfig, Tag("hass")] | Annotated[MQTTConfig, Tag("mqtt")] | Annotated[PluginConfig, Tag("custom")],
+    Discriminator(plugin_discriminator),
+]
 
 
 class ModuleLoggingLevels(RootModel):
@@ -37,18 +39,12 @@ class AppDaemonConfig(BaseModel, extra="allow"):
     latitude: float
     longitude: float
     elevation: int
-    time_zone: Annotated[BaseTzInfo, BeforeValidator(pytz.timezone)]
-    plugins: dict[
-        str,
-        Annotated[
-            Annotated[HASSConfig, Tag("hass")] | Annotated[MQTTConfig, Tag("mqtt")] | Annotated[PluginConfig, Tag("generic")],
-            Discriminator(plugin_discriminator),
-        ],
-    ] = Field(default_factory=dict)
+    time_zone: Annotated[BaseTzInfo, BeforeValidator(pytz.timezone), PlainSerializer(lambda tz: tz.zone)]
+    plugins: dict[str, DiscriminatedPluginConfig] = Field(default_factory=dict)
 
-    config_dir: Path
-    config_file: Path
-    app_dir: Path = "./apps"
+    config_dir: CoercedPath
+    config_file: CoercedPath
+    app_dir: CoercedRelPath
 
     write_toml: bool = False
     ext: Literal[".yaml", ".toml"] = ".yaml"
@@ -58,10 +54,9 @@ class AppDaemonConfig(BaseModel, extra="allow"):
     starttime: datetime | None = None
     endtime: datetime | None = None
     timewarp: float = 1
-    max_clock_skew: int = 1
 
     loglevel: str = "INFO"
-    module_debug: ModuleLoggingLevels = Field(default_factory=dict)
+    module_debug: ModuleLoggingLevels = Field(default_factory=ModuleLoggingLevels)
 
     api_port: int | None = None
     api_key: SecretStr | None = None
@@ -69,14 +64,11 @@ class AppDaemonConfig(BaseModel, extra="allow"):
     api_ssl_key: CoercedPath | None = None
     stop_function: Callable | None = None
 
-    utility_delay: int = 1
-    admin_delay: int = 1
+    utility_delay: TimeType = timedelta(seconds=1)
+    admin_delay: TimeType = timedelta(seconds=1)
     plugin_performance_update: int = 10
     """How often in seconds to update the admin entities with the plugin performance data"""
-    max_utility_skew: Annotated[
-        timedelta,
-        BeforeValidator(utils.parse_timedelta)
-    ] = Field(default_factory=lambda: timedelta(seconds=2))
+    max_utility_skew: TimeType = timedelta(seconds=2)
     check_app_updates_profile: bool = False
     production_mode: bool = False
     invalid_config_warnings: bool = True
@@ -85,10 +77,7 @@ class AppDaemonConfig(BaseModel, extra="allow"):
     qsize_warning_threshold: int = 50
     qsize_warning_step: int = 60
     qsize_warning_iterations: int = 10
-    internal_function_timeout: Annotated[
-        timedelta,
-        BeforeValidator(utils.parse_timedelta)
-    ] = Field(default_factory=lambda: timedelta(seconds=60))
+    internal_function_timeout: TimeType = timedelta(seconds=60)
     """Timeout for internal function calls. This determines how long apps can wait in their thread for an async function
     to complete in the main thread."""
     use_dictionary_unpacking: Annotated[bool, deprecated("This option is no longer necessary")] = False
@@ -136,13 +125,9 @@ class AppDaemonConfig(BaseModel, extra="allow"):
         arbitrary_types_allowed=True,
         extra="allow",
         validate_assignment=True,
+        validate_default=True,
     )
     ad_version: str = __version__
-
-    @field_validator("config_dir", mode="after")
-    @classmethod
-    def convert_to_absolute(cls, v: Path) -> Path:
-        return v.resolve()
 
     @field_validator("exclude_dirs", mode="after")
     @classmethod

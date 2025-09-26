@@ -33,4 +33,4 @@ class AdminLoop:
                 await self.AD.threading.get_callback_update()
                 await self.AD.threading.get_q_update()
 
-            await asyncio.sleep(self.AD.admin_delay)
+            await asyncio.sleep(self.AD.config.admin_delay.total_seconds())

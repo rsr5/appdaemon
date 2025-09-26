@@ -166,9 +166,6 @@ class AppDaemon(metaclass=Singleton):
     #
     # Property definitions
     #
-    @property
-    def admin_delay(self) -> int:
-        return self.config.admin_delay
 
     @property
     def api_port(self) -> int | None:
@@ -254,14 +251,6 @@ class AppDaemon(metaclass=Singleton):
         return self.config.longitude
 
     @property
-    def max_clock_skew(self):
-        return self.config.max_clock_skew
-
-    @property
-    def max_utility_skew(self):
-        return self.config.max_utility_skew
-
-    @property
     def missing_app_warnings(self):
         return self.config.invalid_config_warnings
 
@@ -330,10 +319,6 @@ class AppDaemon(metaclass=Singleton):
     @property
     def write_toml(self):
         return self.config.write_toml
-
-    @property
-    def utility_delay(self):
-        return self.config.utility_delay
 
     def stop(self):
         """Called by the signal handler to shut AD down.
