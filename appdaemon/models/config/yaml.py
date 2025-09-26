@@ -4,7 +4,8 @@ from typing import Annotated, Any
 from pydantic import BaseModel, model_validator
 from typing_extensions import deprecated
 
-from ... import utils
+from appdaemon import utils
+
 from .appdaemon import AppDaemonConfig
 from .dashboard import DashboardConfig
 from .http import HTTPConfig
@@ -24,9 +25,13 @@ class MainConfig(BaseModel):
 
     @classmethod
     def from_config_file(cls, file: str | Path):
-        config = utils.read_config_file(file)
-        config["appdaemon"]["config_file"] = file
-        return cls.model_validate(config)
+        file = file if isinstance(file, Path) else Path(file)
+        raw_cfg = utils.read_config_file(file)
+        match raw_cfg:
+            case {"appdaemon": dict() as cfg}:
+                cfg["config_file"] = file
+                cfg["config_dir"] = file.parent
+                return cls.model_validate(raw_cfg)
 
     @classmethod
     def from_cli_kwargs(cls, cli_kwargs: AppDaemonCLIKwargs):
