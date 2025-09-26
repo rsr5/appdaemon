@@ -141,24 +141,27 @@ class AppDaemonConfig(BaseModel, extra="allow"):
 
     @field_validator("config_dir", mode="after")
     @classmethod
-    def convert_to_absolute(cls, v: Path):
+    def convert_to_absolute(cls, v: Path) -> Path:
         return v.resolve()
 
     @field_validator("exclude_dirs", mode="after")
     @classmethod
-    def add_default_exclusions(cls, v: list[Path]):
+    def add_default_exclusions(cls, v: list[str]) -> list[str]:
         v.extend(["__pycache__", "build", ".venv"])
         return v
 
     @field_validator("loglevel", mode="before")
     @classmethod
-    def convert_loglevel(cls, v: str | int):
-        if isinstance(v, int):
-            return logging._levelToName[int]
-        elif isinstance(v, str):
-            v = v.upper()
-            assert v in logging._nameToLevel, f"Invalid log level: {v}"
-            return v
+    def convert_loglevel(cls, lvl: str | int) -> str:
+        match lvl:
+            case int():
+                return logging._levelToName[lvl]
+            case str():
+                lvl = lvl.upper()
+                assert lvl in logging._nameToLevel, f"Invalid log level: {lvl}"
+                return lvl
+            case _:
+                raise ValueError(f"Invalid log level: {lvl}")
 
     @field_validator("plugins", mode="before")
     @classmethod
