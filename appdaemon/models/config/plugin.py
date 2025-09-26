@@ -20,7 +20,7 @@ class PluginConfig(BaseModel, extra="allow"):
     disable: bool = False
     persist_entities: bool = False
     refresh_delay: Annotated[timedelta, BeforeValidator(lambda v: timedelta(minutes=v))] = timedelta(minutes=10)
-    """Delay between refreshes of the complete plugin state in the utility loop"""
+    """Delay between refreshes of the complete plugin state in the utility loop. The units are in minutes."""
     refresh_timeout: int = 30
     use_dictionary_unpacking: bool = True
 

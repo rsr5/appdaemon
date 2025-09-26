@@ -97,6 +97,8 @@ class AppDaemonConfig(BaseModel, extra="allow"):
     import_paths: list[Path] = Field(default_factory=list)
     namespaces: dict[str, NamespaceConfig] = Field(default_factory=dict)
     exclude_dirs: list[str] = Field(default_factory=list)
+    """List of directory names to exclude when searching for apps. This will always include __pycache__, build, and
+    .venv"""
     cert_verify: bool = True
     disable_apps: bool = False
     suppress_log_messages: bool = False
