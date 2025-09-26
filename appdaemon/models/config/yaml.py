@@ -32,6 +32,8 @@ class MainConfig(BaseModel):
                 cfg["config_file"] = file
                 cfg["config_dir"] = file.parent
                 return cls.model_validate(raw_cfg)
+            case _:
+                raise ValueError(f"Invalid configuration file: {file}")
 
     @classmethod
     def from_cli_kwargs(cls, cli_kwargs: AppDaemonCLIKwargs):
