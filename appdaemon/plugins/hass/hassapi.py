@@ -119,18 +119,28 @@ class Hass(ADBase, ADAPI):
             - Asserts that the entity is in the right domain.
             - Displays a warning if the entity doesn't exist in the namespace.
         """
-        namespace = namespace or self.namespace
-        domain = service.split('/')[0]
+        namespace = namespace if namespace is not None else self.namespace
+        service_domain = service.split('/')[0]
+
+        def _check(entity_ids: Iterable[str]) -> None:
+            for eid in entity_ids:
+                entity_domain = eid.split('.')[0]
+                # This check needs to work for domains like "number" and "input_number"
+                assert entity_domain in service_domain, (
+                    f"Entity domain '{entity_domain}' does not match service domain '{service_domain}'"
+                )
+                self._check_entity(namespace, eid)
 
         match entity_id:
             case str():
-                assert domain == entity_id.split('.')[0], f'{entity_id} does not match domain for {service}'
-                self._check_entity(namespace, entity_id)
-            case Iterable():
-                entity_id = entity_id if isinstance(entity_id, list) else list(entity_id)
-                for e in entity_id:
-                    assert domain == e.split('.')[0], f'{e} does not match domain for {service}'
-                    self._check_entity(namespace, e)
+                _check([entity_id])
+            case list(entity_ids):
+                _check(entity_ids)
+            case Iterable() as entity_ids:
+                entity_id = entity_ids if isinstance(entity_ids, list) else list(entity_ids)
+                _check(entity_id)
+            case _:
+                raise TypeError('entity_id must be a string or an iterable of strings')
 
         return await self.call_service(
             service=service,
@@ -355,31 +365,33 @@ class Hass(ADBase, ADAPI):
 
     def constrain_presence(self, value: Literal["everyone", "anyone", "noone"] | None = None) -> bool:
         """Returns True if unconstrained"""
-        match value.lower():
-            case "everyone":
-                return not self.everyone_home()
-            case "anyone":
-                return not self.anyone_home()
-            case "noone":
-                return not self.noone_home()
+        match value:
             case None:
                 return True
-            case _:
-                raise ValueError(f'Invalid presence constraint: {value}')
+            case str(value_str):
+                match value_str.strip().lower():
+                    case "everyone":
+                        return self.everyone_home()
+                    case "anyone":
+                        return self.anyone_home()
+                    case "noone":
+                        return self.noone_home()
+        raise ValueError(f'Invalid presence constraint: {value}')
 
     def constrain_person(self, value: Literal["everyone", "anyone", "noone"] | None = None) -> bool:
         """Returns True if unconstrained"""
-        match value.lower():
-            case "everyone":
-                return not self.everyone_home(person=True)
-            case "anyone":
-                return not self.anyone_home(person=True)
-            case "noone":
-                return not self.noone_home(person=True)
+        match value:
             case None:
                 return True
-            case _:
-                raise ValueError(f'Invalid presence constraint: {value}')
+            case str(value_str):
+                match value_str.strip().lower():
+                    case "everyone":
+                        return self.everyone_home(person=True)
+                    case "anyone":
+                        return self.anyone_home(person=True)
+                    case "noone":
+                        return self.noone_home(person=True)
+        raise ValueError(f'Invalid presence constraint: {value}')
 
     def constrain_input_boolean(self, value: str | Iterable[str]) -> bool:
         """Returns True if unconstrained - all input_booleans match the desired
@@ -677,9 +689,9 @@ class Hass(ADBase, ADAPI):
         days: int | None = None,
         start_time: datetime | str | None = None,
         end_time: datetime | str | None = None,
-        minimal_response: bool | None = None,
-        no_attributes: bool | None = None,
-        significant_changes_only: bool | None = None,
+        minimal_response: bool = False,
+        no_attributes: bool = False,
+        significant_changes_only: bool = False,
         callback: Callable | None = None,
         namespace: str | None = None,
     ) -> list[list[dict[str, Any]]] | None:

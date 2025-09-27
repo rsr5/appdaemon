@@ -30,7 +30,8 @@ class AppDaemonFullLogConfig(RootModel):
     root: dict[str, AppDaemonLogConfig] = Field(default_factory=dict)
 
     def model_post_init(self, context: Any) -> None:
-        for log_name, log_config in self.root.items():
-            log_config.name = log_config.name or SYSTEM_LOG_NAME_MAP.get(log_name, None)
-        if log_config.name is None:
-            raise NameError(f"Log name must be specified for user logs: {log_name}")
+        if len(self.root) > 0:
+            for log_name, log_config in self.root.items():
+                log_config.name = log_config.name or SYSTEM_LOG_NAME_MAP.get(log_name, None)
+            if log_config.name is None:
+                raise NameError(f"Log name must be specified for user logs: {log_name}")
