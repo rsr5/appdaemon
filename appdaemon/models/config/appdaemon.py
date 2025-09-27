@@ -17,10 +17,15 @@ from .plugin import HASSConfig, MQTTConfig, PluginConfig
 
 
 def plugin_discriminator(plugin: dict[str, Any] | PluginConfig) -> Literal["hass", "mqtt", "custom"]:
+    """Determine which tag string to use for the plugin config.
+
+    Only built-in plugins like HASS and MQTT use their own config models. Custom plugins will fall back to the generic
+    PluginConfig model.
+    """
     match plugin:
         case {"type": str(t)} | PluginConfig(type=str(t)):
             match t.lower():
-                case ("hass" | "mqtt" | "custom") as type_:
+                case ("hass" | "mqtt") as type_:
                     return type_
     return "custom"
 

@@ -135,11 +135,10 @@ class ManagedObject:
     pin_app: bool | None = None
     pin_thread: int | None = None
     running: bool = False
-    use_dictionary_unpacking: bool = False
     callback_counter: int = 0
     lock: threading.RLock = field(init=False, default_factory=threading.RLock)
 
     def increment_callback_counter(self, n: int = 1) -> None:
-        """Increments the callback counter by one"""
+        """Increments the callback counter"""
         with self.lock:
             self.callback_counter += n

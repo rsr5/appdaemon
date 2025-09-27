@@ -298,7 +298,7 @@ class PluginManagement:
                     # Create app entry for the plugin so we can listen_state/event
                     #
                     if self.AD.apps_enabled:
-                        self.AD.app_management.add_plugin_object(name, plugin, self.config[name].use_dictionary_unpacking)
+                        self.AD.app_management.add_plugin_object(name, plugin)
 
                     self.AD.loop.create_task(plugin.get_updates(), name=f"plugin.get_updates for {name}")
                 except Exception:
@@ -484,12 +484,13 @@ class PluginManagement:
 
     async def update_plugin_state(self):
         for plugin, cfg in self.active_plugins:
-            if await self.time_since_plugin_update(plugin.name) > cfg.refresh_delay:
+            elapsed = await self.time_since_plugin_update(plugin.name)
+            if elapsed > cfg.refresh_delay:
                 self.logger.debug(f"Refreshing {plugin.name}[{cfg.type}] state")
                 try:
                     state = await asyncio.wait_for(
                         plugin.get_complete_state(),
-                        timeout=cfg.refresh_timeout,
+                        timeout=cfg.refresh_timeout.total_seconds(),
                     )
                 except asyncio.TimeoutError:
                     self.logger.warning(

@@ -13,5 +13,5 @@ ParsedTimedelta = Annotated[timedelta, BeforeValidator(parse_timedelta), PlainSe
 
 
 CoercedPath = Annotated[Path, BeforeValidator(lambda p: Path(p).resolve())]
-CoercedRelPath = Annotated[Path, BeforeValidator(Path)]
+CoercedRelPath = Annotated[Path, BeforeValidator(lambda p: Path(p))]
 LogPath = Annotated[Literal["STDOUT", "STDERR"], BeforeValidator(lambda s: s.upper())] | CoercedPath

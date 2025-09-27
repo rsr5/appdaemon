@@ -31,4 +31,4 @@ class AdminLoop:
                 await self.AD.threading.get_callback_update()
                 await self.AD.threading.get_q_update()
 
-            await self.AD.utility.sleep(self.AD.admin_delay, timeout_ok=True)
+            await self.AD.utility.sleep(self.AD.config.admin_delay.total_seconds(), timeout_ok=True)
