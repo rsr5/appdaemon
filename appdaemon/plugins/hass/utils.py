@@ -2,6 +2,8 @@ import functools
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
+from appdaemon import utils
+
 if TYPE_CHECKING:
     from .hassplugin import HassPlugin
 
@@ -21,7 +23,8 @@ def looped_coro(coro, sleep_time: int | float):
             try:
                 await coro()
             except Exception:
-                self.logger.error(f"Error running {coro.__name__} - retrying in {sleep_time}s")
+                sleep_time_str = utils.format_timedelta(sleep_time)
+                self.logger.error(f"Error running {coro.__name__} - retrying in {sleep_time_str}")
             finally:
                 await self.AD.utility.sleep(sleep_time, timeout_ok=True)
 

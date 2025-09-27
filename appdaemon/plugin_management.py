@@ -9,6 +9,7 @@ from logging import Logger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Type
 
+from . import exceptions as ade
 from . import utils
 from .app_management import UpdateMode
 from .models.config import AppConfig
@@ -273,9 +274,9 @@ class PluginManagement:
                 self.logger.info("Plugin '%s' disabled", name)
             else:
                 if name.lower() in built_ins:
-                    msg = "Loading Plugin %s using class %s from module %s"
+                    msg = "Loading built-in plugin '%s' using '%s' from '%s'"
                 else:
-                    msg = "Loading Custom Plugin %s using class %s from module %s"
+                    msg = "Loading custom plugin '%s' using '%s' from '%s'"
                 self.logger.info(
                     msg,
                     name,
@@ -284,24 +285,43 @@ class PluginManagement:
                 )
 
                 try:
-                    module = importlib.import_module(cfg.plugin_module)
-                    plugin_class: Type[PluginBase] = getattr(module, cfg.plugin_class)
-                    plugin: PluginBase = plugin_class(self.AD, name, self.config[name])
-                    namespace = plugin.config.namespace
+                    try:
+                        module = importlib.import_module(cfg.plugin_module)
+                    except ModuleNotFoundError as e:
+                        raise ade.PluginMissingError(cfg.type, name) from e
+                    except SyntaxError as e:
+                        raise ade.PluginLoadError(cfg.type, name) from e
 
-                    if namespace in self.plugin_objs:
-                        raise ValueError(f"Duplicate namespace: {namespace}")
+                    try:
+                        plugin_class: Type[PluginBase] = getattr(module, cfg.plugin_class)
+                    except AttributeError as e:
+                        raise ade.PluginMissingError(cfg.type, name) from e
+
+                    try:
+                        plugin: PluginBase = plugin_class(self.AD, name, self.config[name])
+                        if not isinstance(plugin, PluginBase):
+                            raise ade.PluginTypeError(cfg.type, name)
+                    except Exception as e:
+                        raise ade.PluginCreateError(cfg.type, name) from e
+
+                    namespace = plugin.config.namespace
+                    match self.plugin_objs.get(namespace):
+                        case None:
+                            pass # This means the namespace is not already taken, which is good
+                        case {"object": PluginBase(name=str(existing_plugin))}:
+                            raise ade.PluginNamespaceError(name, namespace, existing_plugin)
 
                     self.plugin_objs[namespace] = {"object": plugin, "active": False, "name": name}
 
-                    #
-                    # Create app entry for the plugin so we can listen_state/event
-                    #
                     if self.AD.apps_enabled:
-                        self.AD.app_management.add_plugin_object(name, plugin, self.config[name].use_dictionary_unpacking)
+                        # Create app entry for the plugin so we can listen_state/event
+                        self.AD.app_management.add_plugin_object(name, plugin)
 
                     self.AD.loop.create_task(plugin.get_updates(), name=f"plugin.get_updates for {name}")
+                except ade.AppDaemonException as e:
+                    ade.user_exception_block(self.error, e, self.AD.app_dir, f"Plugin failure for '{name}'")
                 except Exception:
+                    self.logger.warning("-" * 60)
                     self.logger.warning("error loading plugin: %s - ignoring", name)
                     self.logger.warning("-" * 60)
                     self.logger.warning(traceback.format_exc())
@@ -431,6 +451,14 @@ class PluginManagement:
     def get_plugin_meta(self, namespace: str) -> dict:
         return self.plugin_meta.get(namespace, {})
 
+
+    def _ready_events(self) -> Generator[tuple[str, asyncio.Event]]:
+        for plugin_cfg in self.plugin_objs.values():
+            match plugin_cfg:
+                case {"object": PluginBase(name=str(name), ready_event=asyncio.Event() as event)}:
+                    yield name, event
+
+
     async def wait_for_plugins(self, timeout: float | None = None):
         """Waits for the user-configured plugin startup conditions.
 
@@ -438,11 +466,8 @@ class PluginManagement:
         """
         self.logger.info("Waiting for plugins to be ready")
         wait_tasks = [
-            self.AD.loop.create_task(
-                plugin["object"].ready_event.wait(),
-                name=f"waiting for {plugin['name']} to be ready",
-            )
-            for plugin in self.plugin_objs.values()
+            self.AD.loop.create_task(event.wait(), name=f"waiting for {plugin_name} to be ready")
+            for plugin_name, event in self._ready_events()
         ]
         readiness = self.AD.loop.create_task(
             asyncio.wait(wait_tasks, timeout=timeout, return_when=asyncio.ALL_COMPLETED),
@@ -469,9 +494,10 @@ class PluginManagement:
     @property
     def active_plugins(self) -> Generator[tuple[PluginBase, PluginConfig], None, None]:
         for namespace, plugin_cfg in self.plugin_objs.items():
-            if plugin_cfg["active"]:
-                cfg = self.get_config_for_namespace(namespace)
-                yield plugin_cfg["object"], cfg
+            match plugin_cfg:
+                case {"object": PluginBase() as obj, "active": True}:
+                    cfg = self.get_config_for_namespace(namespace)
+                    yield obj, cfg
 
     async def refresh_update_time(self, plugin_name: str):
         """Updates the internal time for when the plugin's state was last updated"""
@@ -482,12 +508,13 @@ class PluginManagement:
 
     async def update_plugin_state(self):
         for plugin, cfg in self.active_plugins:
-            if await self.time_since_plugin_update(plugin.name) > cfg.refresh_delay:
+            elapsed = await self.time_since_plugin_update(plugin.name)
+            if elapsed > cfg.refresh_delay:
                 self.logger.debug(f"Refreshing {plugin.name}[{cfg.type}] state")
                 try:
                     state = await asyncio.wait_for(
                         plugin.get_complete_state(),
-                        timeout=cfg.refresh_timeout,
+                        timeout=cfg.refresh_timeout.total_seconds(),
                     )
                 except asyncio.TimeoutError:
                     self.logger.warning(

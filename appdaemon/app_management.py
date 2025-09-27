@@ -590,7 +590,7 @@ class AppManagement:
             )  # fmt: skip
         return apps
 
-    def add_plugin_object(self, name: str, object: "PluginBase", use_dictionary_unpacking: bool = False) -> None:
+    def add_plugin_object(self, name: str, object: "PluginBase") -> None:
         """Add the plugin object to the internal dictionary of ``ManagedObjects``"""
         self.objects[name] = ManagedObject(
             type="plugin",
@@ -598,7 +598,6 @@ class AppManagement:
             pin_app=False,
             pin_thread=-1,
             running=False,
-            use_dictionary_unpacking=use_dictionary_unpacking,
         )
 
     async def terminate_sequence(self, name: str) -> bool:

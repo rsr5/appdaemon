@@ -166,9 +166,6 @@ class AppDaemon:
     #
     # Property definitions
     #
-    @property
-    def admin_delay(self) -> int:
-        return self.config.admin_delay
 
     @property
     def api_port(self) -> int | None:
@@ -259,14 +256,6 @@ class AppDaemon:
     @property
     def longitude(self):
         return self.config.longitude
-
-    @property
-    def max_clock_skew(self):
-        return self.config.max_clock_skew
-
-    @property
-    def max_utility_skew(self):
-        return self.config.max_utility_skew
 
     @property
     def missing_app_warnings(self):

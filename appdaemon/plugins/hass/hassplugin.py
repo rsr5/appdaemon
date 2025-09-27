@@ -119,7 +119,7 @@ class HassPlugin(PluginBase):
             connector=conn,
             headers=self.config.auth_headers,
             json_serialize=utils.convert_json,
-            conn_timeout=self.config.connect_timeout,
+            conn_timeout=self.config.connect_timeout.total_seconds(),
         )
 
     async def websocket_msg_factory(self):
@@ -199,10 +199,10 @@ class HassPlugin(PluginBase):
             case _:
                 raise HAEventsSubError(-1, f"Unknown response from subscribe_events: {res}")
 
-        config_coro = looped_coro(self.get_hass_config, self.config.config_sleep_time)
+        config_coro = looped_coro(self.get_hass_config, self.config.config_sleep_time.total_seconds())
         self.AD.loop.create_task(config_coro(self))
 
-        service_coro = looped_coro(self.get_hass_services, self.config.services_sleep_time)
+        service_coro = looped_coro(self.get_hass_services, self.config.services_sleep_time.total_seconds())
         self.AD.loop.create_task(service_coro(self))
 
         if self.first_time:
@@ -537,15 +537,12 @@ class HassPlugin(PluginBase):
             except Exception as exc:
                 self.error.error(exc)
                 if not self.AD.stopping:
-                    self.logger.info(
-                        "Attempting reconnection in %s seconds",
-                        self.config.retry_secs,
-                    )
+                    self.logger.info("Attempting reconnection in %s", utils.format_timedelta(self.config.retry_secs))
                     if self.is_ready:
                         # Will only run the first time through the loop after a failure
                         await self.AD.plugins.notify_plugin_stopped(self.name, self.namespace)
                     self.ready_event.clear()
-                    await self.AD.utility.sleep(self.config.retry_secs, timeout_ok=True)
+                    await self.AD.utility.sleep(self.config.retry_secs.total_seconds(), timeout_ok=True)
 
             # always do this block, no matter what
             finally:

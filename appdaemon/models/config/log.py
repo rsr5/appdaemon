@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, RootModel
 
-from .common import CoercedPath, LogLevel, TimeType
+from .common import LogPath, LogLevel, ParsedTimedelta
 
 SYSTEM_LOG_NAME_MAP = {
     "main_log": 'AppDaemon',
@@ -14,7 +14,7 @@ SYSTEM_LOG_NAME_MAP = {
 
 
 class AppDaemonLogConfig(BaseModel):
-    filename: CoercedPath = "STDOUT"
+    filename: LogPath = "STDOUT"
     name: str | None = None
     level: LogLevel = 'INFO'
     log_generations: int = 3
@@ -22,8 +22,8 @@ class AppDaemonLogConfig(BaseModel):
     format_: str = Field(default="{asctime} {levelname} {appname}: {message}", alias="format")
     date_format: str = "%Y-%m-%d %H:%M:%S.%f"
     filter_threshold: int = 1
-    filter_timeout: TimeType = timedelta(seconds=0.9)
-    filter_repeat_delay: TimeType = timedelta(seconds=5.0)
+    filter_timeout: ParsedTimedelta = timedelta(seconds=0.9)
+    filter_repeat_delay: ParsedTimedelta = timedelta(seconds=5.0)
 
 
 class AppDaemonFullLogConfig(RootModel):

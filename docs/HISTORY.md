@@ -16,6 +16,8 @@
     - uv version
     - Docker build/push version
 - Improved error messages for failed connections to Home Assistant
+- Improved error messages for custom plugins
+- Parsing various timedeltas in config with `utils.parse_timedelta`
 
 **Fixes**
 
@@ -26,6 +28,10 @@
 - Type hints for async state callbacks
 - Various type hints
 - Reverted discarding of events during app initialize methods to pre-4.5  by default and added an option to turn it on if required (should fix run_in() calls with a delay of 0 during initialize, as well as listen_state() with a duration and immediate=True)
+- Fixed logic in presence/person constraints
+- Fixed logic in calling services from HA so that things like `input_number/set_value` work with entities in the `number` domain
+- Fixed `get_history` for boolean objects
+- Fixed config models to allow custom plugins
 
 ## 4.5.11
 

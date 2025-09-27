@@ -260,7 +260,7 @@ class Utility:
                 "Util loop compute time: %s, check_app_updates: %s, other: %s",
                 timing.get_time_strs(),
             )
-            if self.AD.real_time and timing.timedelta("total") > self.AD.max_utility_skew:
+            if self.AD.real_time and timing.timedelta("total") > self.AD.config.max_utility_skew:
                 self.logger.warning(
                     "Excessive time spent in utility loop: %s, %s in check_app_updates(), %s in other",
                     *timing.get_time_strs(),
@@ -270,7 +270,7 @@ class Utility:
                     self.logger.info(self.AD.app_management.check_app_updates_profile_stats)
             else:
                 if not self.AD.stopping:
-                    await self.sleep(self.AD.utility_delay, timeout_ok=True)
+                    await self.sleep(self.AD.config.utility_delay.total_seconds(), timeout_ok=True)
 
     async def production_mode_service(self, ns, domain, service, kwargs):
         match kwargs:
