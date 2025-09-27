@@ -274,9 +274,9 @@ class PluginManagement:
                 self.logger.info("Plugin '%s' disabled", name)
             else:
                 if name.lower() in built_ins:
-                    msg = "Loading Plugin %s using class %s from module %s"
+                    msg = "Loading built-in plugin '%s' using '%s' from '%s'"
                 else:
-                    msg = "Loading Custom Plugin %s using class %s from module %s"
+                    msg = "Loading custom plugin '%s' using '%s' from '%s'"
                 self.logger.info(
                     msg,
                     name,
