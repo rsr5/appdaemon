@@ -49,7 +49,10 @@ class AppDaemonConfig(BaseModel, extra="allow"):
 
     config_dir: CoercedPath
     config_file: CoercedPath
-    app_dir: CoercedRelPath
+    # The CoercedRelPath validator doesn't resolve the relative paths because it will be done relative to wherever
+    # AppDaemon is started from, which might not be the config directory.
+    app_dir: CoercedRelPath = Path("./apps")
+    """Directory to look for apps in, relative to config_dir if not absolute"""
 
     write_toml: bool = False
     ext: Literal[".yaml", ".toml"] = ".yaml"
@@ -136,6 +139,12 @@ class AppDaemonConfig(BaseModel, extra="allow"):
         validate_default=True,
     )
     ad_version: str = __version__
+
+    @model_validator(mode="after")
+    def resolve_app_dir(self) -> "AppDaemonConfig":
+        if not self.app_dir.is_absolute():
+            self.app_dir = (self.config_dir / self.app_dir).resolve()
+        return self
 
     @field_validator("exclude_dirs", mode="after")
     @classmethod
