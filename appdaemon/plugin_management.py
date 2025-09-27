@@ -451,6 +451,14 @@ class PluginManagement:
     def get_plugin_meta(self, namespace: str) -> dict:
         return self.plugin_meta.get(namespace, {})
 
+
+    def _ready_events(self) -> Generator[tuple[str, asyncio.Event]]:
+        for plugin_cfg in self.plugin_objs.values():
+            match plugin_cfg:
+                case {"object": PluginBase(name=str(name), ready_event=asyncio.Event() as event)}:
+                    yield name, event
+
+
     async def wait_for_plugins(self, timeout: float | None = None):
         """Waits for the user-configured plugin startup conditions.
 
@@ -458,11 +466,8 @@ class PluginManagement:
         """
         self.logger.info("Waiting for plugins to be ready")
         wait_tasks = [
-            self.AD.loop.create_task(
-                plugin["object"].ready_event.wait(),
-                name=f"waiting for {plugin['name']} to be ready",
-            )
-            for plugin in self.plugin_objs.values()
+            self.AD.loop.create_task(event.wait(), name=f"waiting for {plugin_name} to be ready")
+            for plugin_name, event in self._ready_events()
         ]
         readiness = self.AD.loop.create_task(
             asyncio.wait(wait_tasks, timeout=timeout, return_when=asyncio.ALL_COMPLETED),
