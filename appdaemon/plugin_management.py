@@ -9,6 +9,7 @@ from logging import Logger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Type
 
+from . import exceptions as ade
 from . import utils
 from .app_management import UpdateMode
 from .models.config import AppConfig
@@ -284,23 +285,41 @@ class PluginManagement:
                 )
 
                 try:
-                    module = importlib.import_module(cfg.plugin_module)
-                    plugin_class: Type[PluginBase] = getattr(module, cfg.plugin_class)
-                    plugin: PluginBase = plugin_class(self.AD, name, self.config[name])
-                    namespace = plugin.config.namespace
+                    try:
+                        module = importlib.import_module(cfg.plugin_module)
+                    except ModuleNotFoundError as e:
+                        raise ade.PluginMissingError(cfg.type, name) from e
+                    except SyntaxError as e:
+                        raise ade.PluginLoadError(cfg.type, name) from e
 
-                    if namespace in self.plugin_objs:
-                        raise ValueError(f"Duplicate namespace: {namespace}")
+                    try:
+                        plugin_class: Type[PluginBase] = getattr(module, cfg.plugin_class)
+                    except AttributeError as e:
+                        raise ade.PluginMissingError(cfg.type, name) from e
+
+                    try:
+                        plugin: PluginBase = plugin_class(self.AD, name, self.config[name])
+                        if not isinstance(plugin, PluginBase):
+                            raise ade.PluginTypeError(cfg.type, name)
+                    except Exception as e:
+                        raise ade.PluginCreateError(cfg.type, name) from e
+
+                    namespace = plugin.config.namespace
+                    match self.plugin_objs.get(namespace):
+                        case None:
+                            pass # This means the namespace is not already taken, which is good
+                        case {"object": PluginBase(name=str(existing_plugin))}:
+                            raise ade.PluginNamespaceError(name, namespace, existing_plugin)
 
                     self.plugin_objs[namespace] = {"object": plugin, "active": False, "name": name}
 
-                    #
-                    # Create app entry for the plugin so we can listen_state/event
-                    #
                     if self.AD.apps_enabled:
+                        # Create app entry for the plugin so we can listen_state/event
                         self.AD.app_management.add_plugin_object(name, plugin)
 
                     self.AD.loop.create_task(plugin.get_updates(), name=f"plugin.get_updates for {name}")
+                except ade.AppDaemonException as e:
+                    ade.user_exception_block(self.error, e, self.AD.app_dir, f"Plugin failure for '{name}'")
                 except Exception:
                     self.logger.warning("-" * 60)
                     self.logger.warning("error loading plugin: %s - ignoring", name)

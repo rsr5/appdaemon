@@ -581,3 +581,52 @@ class NoADConfig(AppDaemonException):
 
     def __str__(self):
         return self.msg
+
+
+@dataclass
+class PluginMissingError(AppDaemonException):
+    plugin_type: str
+    plugin_name: str
+
+    def __str__(self):
+        return f"Failed to find plugin '{self.plugin_name}' of type '{self.plugin_type}'"
+
+
+@dataclass
+class PluginLoadError(AppDaemonException):
+    plugin_type: str
+    plugin_name: str
+
+    def __str__(self):
+        return f"Failed to load plugin '{self.plugin_name}' of type '{self.plugin_type}'"
+
+
+@dataclass
+class PluginTypeError(AppDaemonException):
+    plugin_type: str
+    plugin_name: str
+
+    def __str__(self):
+        return f"Plugin '{self.plugin_name}' of type '{self.plugin_type}' does not extend PluginBase, which is required."
+
+
+@dataclass
+class PluginCreateError(AppDaemonException):
+    plugin_type: str
+    plugin_name: str
+
+    def __str__(self):
+        return f"Failed to create plugin '{self.plugin_name}' of type '{self.plugin_type}'"
+
+
+@dataclass
+class PluginNamespaceError(AppDaemonException):
+    plugin_name: str
+    namespace: str
+    existing_plugin: str
+
+    def __str__(self):
+        if self.namespace == "default":
+            return f"'{self.existing_plugin}' already uses the default namespace, so '{self.plugin_name}' needs to specify a different one."
+        else:
+            return f"Namespace '{self.namespace}' is already used by plugin '{self.existing_plugin}'"
