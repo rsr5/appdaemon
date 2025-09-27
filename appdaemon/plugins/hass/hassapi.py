@@ -365,31 +365,33 @@ class Hass(ADBase, ADAPI):
 
     def constrain_presence(self, value: Literal["everyone", "anyone", "noone"] | None = None) -> bool:
         """Returns True if unconstrained"""
-        match value.lower():
-            case "everyone":
-                return not self.everyone_home()
-            case "anyone":
-                return not self.anyone_home()
-            case "noone":
-                return not self.noone_home()
+        match value:
             case None:
                 return True
-            case _:
-                raise ValueError(f'Invalid presence constraint: {value}')
+            case str(value_str):
+                match value_str.strip().lower():
+                    case "everyone":
+                        return self.everyone_home()
+                    case "anyone":
+                        return self.anyone_home()
+                    case "noone":
+                        return self.noone_home()
+        raise ValueError(f'Invalid presence constraint: {value}')
 
     def constrain_person(self, value: Literal["everyone", "anyone", "noone"] | None = None) -> bool:
         """Returns True if unconstrained"""
-        match value.lower():
-            case "everyone":
-                return not self.everyone_home(person=True)
-            case "anyone":
-                return not self.anyone_home(person=True)
-            case "noone":
-                return not self.noone_home(person=True)
+        match value:
             case None:
                 return True
-            case _:
-                raise ValueError(f'Invalid presence constraint: {value}')
+            case str(value_str):
+                match value_str.strip().lower():
+                    case "everyone":
+                        return self.everyone_home(person=True)
+                    case "anyone":
+                        return self.anyone_home(person=True)
+                    case "noone":
+                        return self.noone_home(person=True)
+        raise ValueError(f'Invalid presence constraint: {value}')
 
     def constrain_input_boolean(self, value: str | Iterable[str]) -> bool:
         """Returns True if unconstrained - all input_booleans match the desired
