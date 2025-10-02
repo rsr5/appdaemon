@@ -1,6 +1,6 @@
 import ast
 import logging
-from collections.abc import Generator
+from collections.abc import Generator, Mapping
 from graphlib import TopologicalSorter
 from pathlib import Path
 from typing import Iterable
@@ -207,18 +207,14 @@ def find_all_dependents(
     return visited
 
 
-class CircularDependency(Exception):
-    pass
-
-
-def topo_sort(graph: dict[str, set[str]]) -> list[str]:
+def topo_sort(graph: Mapping[str, set[str]]) -> list[str]:
     """Topological sort
 
     Args:
         graph (Mapping[str, set[str]]): Dependency graph
 
     Raises:
-        CircularDependency: Raised if a cycle is detected
+        CycleError: Raised if a cycle is detected
 
     Returns:
         list[str]: Ordered list of the nodes
