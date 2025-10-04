@@ -33,8 +33,10 @@ from pydantic import BaseModel, ValidationError
 from pytz import BaseTzInfo
 
 from appdaemon.parse import parse_datetime
-from appdaemon.version import __version__  # noqa: F401
-from appdaemon.version import __version_comments__  # noqa: F401
+from appdaemon.version import (
+    __version__,  # noqa: F401
+    __version_comments__,  # noqa: F401
+)
 
 from . import exceptions as ade
 from .parse import parse_timedelta
@@ -1082,12 +1084,14 @@ def clean_kwargs(**kwargs: Any) -> Generator[tuple[str, Any]]:
         - Mapping values (like dicts) are converted to dicts of cleaned key-value pairs
     """
 
-    def _clean_value(val: bool | datetime | Any) -> str:
+    def _clean_value(val: bool | datetime | Any) -> str | int | float | bool:
         match val:
+            case bool():
+                return val
+            case str() | int() | float() | bool():
+                return val
             case datetime():
                 return val.isoformat()
-            case bool():
-                return str(val).lower()
             case _:
                 return str(val)
 
@@ -1097,7 +1101,7 @@ def clean_kwargs(**kwargs: Any) -> Generator[tuple[str, Any]]:
                 continue
             case str():
                 # This case needs to be before the Iterable case because strings are iterable
-                yield key, _clean_value(val)
+                yield key, val
             case Mapping():
                 # This case needs to be before the Iterable case because Mappings like dicts are iterable
                 yield key, dict(clean_kwargs(**val))
@@ -1111,9 +1115,13 @@ def clean_http_kwargs(**kwargs: Any) -> Generator[tuple[str, Any]]:
     """Recursively cleans the kwarg dict to prepare it for use in HTTP requests."""
     for key, val in clean_kwargs(**kwargs):
         match val:
-            case "false" | None:
-                # Filter out values that are False or None
+            case None:
+                continue # filter None values
+            case False | "false":
+                # Filter out values that are False
                 continue
+            case True:
+                yield key, "true"
             case _:
                 yield key, val
 

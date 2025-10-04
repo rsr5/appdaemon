@@ -16,10 +16,10 @@ BASE = {"a": 1, "b": 2.0, "c": "three", "d": True, "e": False, "f": datetime(202
 
 def test_clean_kwargs():
     cleaned = dict(clean_kwargs(**BASE))
-    for v in cleaned.values():
-        assert isinstance(v, str), f"Value {v} should be a string after cleaning"
+    assert isinstance(cleaned["f"], str)
 
-    assert cleaned["e"] == "false"
+    assert cleaned["d"] is True
+    assert cleaned["e"] is False
     assert "g" not in cleaned
 
     kwargs = deepcopy(BASE)
@@ -27,14 +27,11 @@ def test_clean_kwargs():
     kwargs["nested"] = deepcopy(BASE)
     kwargs["nested"]["extra"] = deepcopy(BASE)
     cleaned = dict(clean_kwargs(**kwargs))
-    for v in cleaned["nested"]["extra"].values():
-        assert isinstance(v, str), f"Value {v} should be a string after cleaning"
+    assert isinstance(cleaned["nested"]["extra"]["f"], str)
 
 
 def test_clean_http_kwargs():
     cleaned = dict(clean_http_kwargs(**BASE))
-    for v in cleaned.values():
-        assert isinstance(v, str), f"Value {v} should be a string after cleaning"
-
+    assert isinstance(cleaned["f"], str)
     assert "e" not in cleaned
     assert "g" not in cleaned
