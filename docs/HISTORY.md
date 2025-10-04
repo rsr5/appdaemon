@@ -18,6 +18,7 @@
 - Improved error messages for failed connections to Home Assistant
 - Improved error messages for custom plugins
 - Parsing various timedeltas in config with `utils.parse_timedelta`
+- Add callback argument to Dashboard's call_service - contributed by [psolyca](https://github.com/psolyca)
 
 **Fixes**
 
