@@ -536,7 +536,7 @@ class PluginManagement:
                             ns = cfg.namespace
                         self.AD.state.update_namespace_state(ns, state)
                 finally:
-                    await self.refresh_update_time(plugin)
+                    await self.refresh_update_time(plugin.name)
 
     def required_meta_check(self):
         OK = True
