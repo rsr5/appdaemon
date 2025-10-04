@@ -32,6 +32,7 @@
 - Fixed logic in calling services from HA so that things like `input_number/set_value` work with entities in the `number` domain
 - Fixed `get_history` for boolean objects
 - Fixed config models to allow custom plugins
+- Fixed a bug causing spurious state refreshes - contributed by [FredericMa](https://github.com/FredericMa)
 
 ## 4.5.11
 
