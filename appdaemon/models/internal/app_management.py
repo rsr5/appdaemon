@@ -107,7 +107,7 @@ class LoadingActions:
     def term_set(self) -> set[str]:
         return self.reload | self.term
 
-    def term_sort(self, dm: DependencyManager):
+    def term_sort(self, dm: DependencyManager) -> list[str]:
         """Finds all the apps that need to be terminated.
 
         Uses a dependency graph to sort the internal ``reload`` and ``term`` sets together
