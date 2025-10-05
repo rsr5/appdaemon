@@ -416,11 +416,12 @@ class AppDaemon:
         # before stopping the event loop. This allows subsystems to create tasks during their own stop methods
         current_task = asyncio.current_task()
         running_tasks = [task for task in asyncio.all_tasks() if task is not current_task]
-        self.logger.debug(f"Waiting for {len(running_tasks)} tasks to finish before shutting down")
-        all_coro = asyncio.wait(running_tasks, return_when=asyncio.ALL_COMPLETED, timeout=3)
-        gather_task = asyncio.create_task(all_coro, name="appdaemon_stop_tasks")
-        gather_task.add_done_callback(lambda _: self.logger.debug("All tasks finished"))
-        await gather_task
+        if running_tasks:
+            all_coro = asyncio.wait(running_tasks, return_when=asyncio.ALL_COMPLETED, timeout=3)
+            gather_task = asyncio.create_task(all_coro, name="appdaemon_stop_tasks")
+            gather_task.add_done_callback(lambda _: self.logger.debug("All tasks finished"))
+            self.logger.debug("Waiting for tasks to finish...")
+            await gather_task
 
     #
     # Utilities
