@@ -13,7 +13,7 @@ from time import perf_counter
 from typing import Any, Literal, Optional
 
 import aiohttp
-from aiohttp import ClientResponse, WSMsgType
+from aiohttp import ClientResponse, ClientResponseError, RequestInfo, WSMsgType
 from pydantic import BaseModel
 
 import appdaemon.utils as utils
@@ -394,7 +394,7 @@ class HassPlugin(PluginBase):
             ad_status = ServiceCallStatus.TERMINATING
             result = {"success": False}
             if not silent:
-                self.logger.warning(f"AppDaemon started shut down while waiting for the response from the request: {request}")
+                self.logger.warning(f"AppDaemon cancelled waiting for the response from the request: {request}")
         else:
             ad_status = ServiceCallStatus.OK
 
@@ -409,8 +409,8 @@ class HassPlugin(PluginBase):
         endpoint: str,
         timeout: str | int | float | datetime.timedelta | None = 10,
         **kwargs: Any,
-    ) -> str | dict[str, Any] | list[Any] | ClientResponse | None:
-        """
+    ) -> str | dict[str, Any] | list[Any] | aiohttp.ClientResponseError | None:
+        """Wrapper for making HTTP requests to Home Assistant's REST API.
 
         https://developers.home-assistant.io/docs/api/rest
 
@@ -418,14 +418,8 @@ class HassPlugin(PluginBase):
             typ (Literal['get', 'post', 'delete']): Type of HTTP method to use
             endpoint (str): Home Assistant REST endpoint to use. For example '/api/states'
             timeout (float, optional): Timeout for the method in seconds. Defaults to 10s.
-            **kwargs (optional): Zero or more keyword arguments. These get used as the data
-                for the method, as appropriate.
-
-        Raises:
-            NotImplementedError: _description_
-
-        Returns:
-            dict | None: _description_
+            **kwargs (optional): Zero or more keyword arguments. These get used as the data for the method, as
+                appropriate.
         """
         kwargs = utils.clean_http_kwargs(kwargs)
         url = utils.make_endpoint(self.config.ha_url, endpoint)
@@ -452,24 +446,25 @@ class HassPlugin(PluginBase):
             async with http_method(url=url, timeout=client_timeout) as resp:
                 self.logger.debug(f"HTTP {method.upper()} {resp.url}")
                 self.update_perf(bytes_recv=resp.content_length, updates_recv=1)
-                match resp.status:
-                    case 200 | 201:
-                        if endpoint.endswith("template"):
-                            return await resp.text()
-                        else:
-                            return await resp.json()
-                    case 400 | 401 | 403 | 404 | 405:
-                        try:
-                            msg = (await resp.json())["message"]
-                        except Exception:
-                            msg = await resp.text()
-                        self.logger.error(f"Bad response from {url}: {msg}")
-                    case 500 | 502:
-                        text = await resp.text()
-                        self.logger.error("Internal server error %s: %s", url, text)
-                    case _:
-                        raise NotImplementedError("Unhandled error: HTTP %s", resp.status)
-                return resp
+                try:
+                    resp.raise_for_status()
+                except aiohttp.ClientResponseError as cre:
+                    self.logger.error("[%d] HTTP %s: %s %s", cre.status, method.upper(), cre.message, kwargs)
+                    return cre
+                else:
+                    match resp:
+                        case ClientResponse(
+                            content_type=content_type,
+                            request_info=RequestInfo(url=url, method=str(meth))
+                        ):
+                            self.logger.debug("%s success from %s", meth, url)
+                            match content_type:
+                                case "application/json":
+                                    return await resp.json()
+                                case "text/plain":
+                                    return await resp.text()
+                                case _:
+                                    self.logger.warning("Unhandled content type: %s", content_type)
         except asyncio.TimeoutError:
             self.logger.error("Timed out waiting for %s", url)
         except asyncio.CancelledError:
@@ -823,9 +818,9 @@ class HassPlugin(PluginBase):
     ) -> dict | None:
         resp = await self.http_method("get", f"/api/states/{entity_id}", timeout)
         match resp:
-            case ClientResponse():
-                self.logger.error("Error getting state")
-            case dict() | None:
+            case ClientResponseError(message=str(msg)):
+                self.logger.error("Error getting state: %s", msg)
+            case (dict() | None):
                 return resp
             case _:
                 raise ValueError(f"Unexpected result from get_plugin_state: {resp}")
@@ -881,12 +876,8 @@ class HassPlugin(PluginBase):
         )
 
         match result:
-            case ClientResponse():
-                # This means that HA rejected the request
-                error_text = (await result.json()).get("message", "Unknown")
-                if error_text == "Invalid filter_entity_id":
-                    error_text += f" '{filter_entity_id}'"
-                self.logger.error("Error getting history: %s", error_text)
+            case ClientResponseError(message=str(msg)):
+                self.logger.error("Error getting history: %s", msg)
             case list():
                 # nested comprehension to convert the datetimes for convenience
                 return [
@@ -914,23 +905,22 @@ class HassPlugin(PluginBase):
         timestamp: datetime.datetime | None = None,
         end_time: datetime.datetime | None = None,
     ) -> list[dict[str, str | datetime.datetime]] | None:
-        """Used to get HA's logbook"""
+        """Returns an array of logbook entries.
+
+        The `<timestamp>` (`YYYY-MM-DDThh:mm:ssTZD`) is optional and defaults to 1 day before the time of the request.
+        It determines the beginning of the period.
+
+        You can pass the following optional GET parameters:
+
+        - `entity=<entity_id>` to filter on one entity.
+        - `end_time=<timestamp>` to choose the end of period starting from the <timestamp> in URL encoded format.
+        """
         endpoint = "/api/logbook"
         if timestamp is not None:
             endpoint += f"/{timestamp.isoformat()}"
 
-        if entity is not None:
-            assert await self.check_for_entity(entity_id=entity), f"'{entity}' does not exist"
-
-        result = await self.http_method("get", endpoint, entity=entity, end_time=end_time)
-
-        match result:
-            case ClientResponse():
-                # This means that HA rejected the request
-                error_text = (await result.json()).get("message", "Unknown")
-                if error_text == "Invalid filter_entity_id":
-                    error_text += f" '{entity}'"
-                self.logger.error("Error getting history: %s", error_text)
+        resp = await self.http_method("get", endpoint, entity=entity, end_time=end_time)
+        match resp:
             case list():
                 return [
                     {
@@ -942,11 +932,17 @@ class HassPlugin(PluginBase):
                         )
                         for k, v in entry.items()
                     }
-                    for entry in result
+                    for entry in resp
                 ]  # fmt: skip
+            case ClientResponseError(status=500):
+                self.logger.error("Error getting logbook for '%s', it might not exist.", entity)
+            case ClientResponseError(message=str(msg)):
+                self.logger.error("Error getting logbook for '%s': %s", entity, msg)
+            case _:
+                self.logger.error("Unexpected error getting logbook: %s", resp)
 
     @utils.warning_decorator(error_text="Unexpected error rendering template")
-    async def render_template(self, namespace: str, template: str, **kwargs):
+    async def render_template(self, namespace: str, template: str, **kwargs) -> str | None:
         self.logger.debug(
             "render_template() namespace=%s data=%s",
             namespace,
@@ -955,4 +951,11 @@ class HassPlugin(PluginBase):
 
         # if we get a request for not our namespace something has gone very wrong
         assert namespace == self.namespace
-        return await self.http_method("post", "/api/template", template=template, **kwargs)
+        resp = await self.http_method("post", "/api/template", template=template, **kwargs)
+        match resp:
+            case str():
+                return resp
+            case ClientResponseError(message=str(msg)):
+                self.logger.error("Error rendering template: %s", msg)
+            case _:
+                raise ValueError(f"Unexpected result from render_template: {resp}")
