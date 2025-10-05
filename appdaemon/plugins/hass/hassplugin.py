@@ -6,7 +6,6 @@ import asyncio
 import functools
 import json
 import ssl
-import time
 from collections.abc import AsyncGenerator, Iterable
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -810,11 +809,11 @@ class HassPlugin(PluginBase):
     @utils.warning_decorator(error_text="Unexpected error while getting hass state")
     async def get_complete_state(self) -> dict[str, dict[str, Any]] | None:
         """Required method for all AppDaemon plugins.
-        
+
         Uses the ``/api/states`` endpoint of the `REST API <https://developers.home-assistant.io/docs/api/rest>`_ to
         get an array of state objects. Each state has the following attributes: `entity_id`, `state`, `last_changed` and
         `attributes`.
-        
+
         The API natively returns the result as a list of dicts, but this turns the result into a single dict based on
         `entity_id` to match what AppDaemon needs from this method.
         """
@@ -908,7 +907,7 @@ class HassPlugin(PluginBase):
             filter_entity_id (str, Iterable[str]): Filter on one or more entities.
             timestamp (datetime, optional): Determines the beginning of the period. Defaults to 1 day before the time of
                 the request.
-            end_time (datetime, optional): 
+            end_time (datetime, optional):
             minimal_response (bool, optional): Only return last_changed and state for states other than the first and
                 last state (much faster). Defaults to `False`
             no_attributes (bool, optional): Skip returning attributes from the database (much faster).
@@ -1004,7 +1003,7 @@ class HassPlugin(PluginBase):
         `REST API <https://developers.home-assistant.io/docs/api/rest>`_.
 
         See the `template docs <https://www.home-assistant.io/docs/configuration/templating>`_ for more information.
-        
+
         If successful, this returns a str of the raw response. It should still be processed downstream with
         :py:func:`~ast.literal_eval`, which will turn the result into its real type.
         """
