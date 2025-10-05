@@ -340,7 +340,8 @@ class HassPlugin(PluginBase):
         Returns:
             A dict containing the response from Home Assistant.
         """
-        request = dict(utils.clean_kwargs(**request))
+        request = utils.clean_kwargs(request)
+        request = utils.remove_literals(request, (None,))
 
         if not self.connect_event.is_set():
             self.logger.debug("Not connected to websocket, skipping JSON send.")
@@ -426,7 +427,7 @@ class HassPlugin(PluginBase):
         Returns:
             dict | None: _description_
         """
-        kwargs = dict(utils.clean_http_kwargs(**kwargs))
+        kwargs = utils.clean_http_kwargs(kwargs)
         url = utils.make_endpoint(self.config.ha_url, endpoint)
 
         try:

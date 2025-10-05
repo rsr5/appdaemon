@@ -16,7 +16,7 @@ import shelve
 import sys
 import threading
 import traceback
-from collections.abc import Awaitable, Generator, Iterable, Mapping
+from collections.abc import Awaitable, Generator, Iterable, Mapping, Sequence
 from datetime import datetime, time, timedelta, tzinfo
 from functools import wraps
 from logging import Logger
@@ -57,6 +57,8 @@ secrets = None
 ELEVATION_REGEX = re.compile(r"^(?P<N>\d+(?:\.\d+)?)\s+deg\s+(?P<dir>rising|setting)$", re.IGNORECASE)
 
 OFFSET_SPLIT_REGEX = re.compile(r"\s*?[+-]\s*?")
+
+T = TypeVar("T")
 
 
 def has_offset(time_str: str) -> bool:
@@ -1072,58 +1074,49 @@ def time_str(start: float, now: float | None = None) -> str:
     return format_timedelta((now or perf_counter()) - start)
 
 
-def clean_kwargs(**kwargs: Any) -> Generator[tuple[str, Any]]:
+def clean_kwargs(val: Any, *, http: bool = False) -> Any:
     """Recursively clean a dict of kwargs.
 
     Conversions:
-        - None values are removed
         - datetime values are converted to ISO format strings
-        - bool values are converted to lowercase strings
-        - int, float, and str values are converted to strings
-        - Iterable values (like lists and tuples) are converted to lists of cleaned values
         - Mapping values (like dicts) are converted to dicts of cleaned key-value pairs
+        - Iterable values (like lists and tuples) are converted to lists of cleaned values
+        - Other values are converted to strings
     """
 
-    def _clean_value(val: bool | datetime | Any) -> str | int | float | bool:
-        match val:
-            case bool():
-                return val
-            case str() | int() | float() | bool():
-                return val
-            case datetime():
-                return val.isoformat()
-            case _:
-                return str(val)
-
-    for key, val in kwargs.items():
-        match val:
-            case None:
-                continue
-            case str():
-                # This case needs to be before the Iterable case because strings are iterable
-                yield key, val
-            case Mapping():
-                # This case needs to be before the Iterable case because Mappings like dicts are iterable
-                yield key, dict(clean_kwargs(**val))
-            case Iterable():
-                yield key, list(map(_clean_value, val))
-            case _:
-                yield key, _clean_value(val)
+    match val:
+        case True if http:
+            return "true"
+        case str() | int() | float() | bool() | None:
+            return val
+        case datetime():
+            return val.isoformat()
+        case Mapping():
+            return {k: clean_kwargs(v, http=http) for k, v in val.items()}
+        case Iterable():
+            return [clean_kwargs(v, http=http) for v in val]
+        case _:
+            return str(val)
 
 
-def clean_http_kwargs(**kwargs: Any) -> Generator[tuple[str, Any]]:
+def remove_literals(val: Any, literal: Sequence[Any]) -> Any:
+    """Remove instances of literals from a nested data structure."""
+    match val:
+        case str():
+            return val
+        case Mapping():
+            return {k: remove_literals(v, literal) for k, v in val.items() if v not in literal}
+        case Iterable():
+            return [remove_literals(v, literal) for v in val if v not in literal]
+        case _:
+            return val
+
+
+def clean_http_kwargs(val: Any) -> Any:
     """Recursively cleans the kwarg dict to prepare it for use in HTTP requests."""
-    for key, val in clean_kwargs(**kwargs):
-        match val:
-            case None:
-                continue # filter None values
-            case False | "false":
-                # Filter out values that are False
-                continue
-            case True:
-                yield key, "true"
-            case _:
-                yield key, val
+    cleaned = clean_kwargs(val, http=True)
+    pruned = remove_literals(cleaned, (None, False))
+    return pruned
 
 
 def make_endpoint(base: str, endpoint: str) -> str:
