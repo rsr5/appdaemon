@@ -4,11 +4,11 @@
 
 **Features**
 
-None
+- Added the ``ws_max_msg_size`` config option to the Hass plugin
 
 **Fixes**
 
-None
+- Better error handling for receiving huge websocket messages in the Hass plugin
 
 **Breaking Changes**
 

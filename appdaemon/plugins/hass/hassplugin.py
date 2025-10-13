@@ -142,7 +142,10 @@ class HassPlugin(PluginBase):
         self.start = perf_counter()
         async with self.create_session() as self.session:
             try:
-                async with self.session.ws_connect(self.config.websocket_url) as self.ws:
+                async with self.session.ws_connect(
+                    url=self.config.websocket_url,
+                    max_msg_size=self.config.ws_max_msg_size,
+                ) as self.ws:
                     if (exc := self.ws.exception()) is not None:
                         raise HassConnectionError("Failed to connect to Home Assistant websocket") from exc
 
@@ -151,7 +154,7 @@ class HassPlugin(PluginBase):
             finally:
                 self.connect_event.clear()
 
-    async def match_ws_msg(self, msg: aiohttp.WSMessage) -> dict:
+    async def match_ws_msg(self, msg: aiohttp.WSMessage) -> None:
         """Uses a :py:ref:`match <class-patterns>` statement on :py:class:`~aiohttp.WSMessage`.
 
         Uses :py:meth:`~HassPlugin.process_websocket_json` on :py:attr:`~aiohttp.WSMsgType.TEXT` messages.
@@ -168,7 +171,6 @@ class HassPlugin(PluginBase):
                 self.logger.debug("Received %s message", msg.type)
             case _:
                 self.logger.warning("Unhandled websocket message type: %s", msg.type)
-        return msg.json()
 
     @utils.warning_decorator(error_text="Error during processing jSON", reraise=True)
     async def process_websocket_json(self, resp: dict[str, Any]) -> None:
