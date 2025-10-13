@@ -14,7 +14,7 @@ from time import perf_counter
 from typing import Any, Literal, Optional
 
 import aiohttp
-from aiohttp import ClientResponse, ClientResponseError, RequestInfo, WSMsgType
+from aiohttp import ClientResponse, ClientResponseError, RequestInfo, WSMsgType, WebSocketError
 from pydantic import BaseModel
 
 import appdaemon.utils as utils
@@ -22,7 +22,7 @@ from appdaemon.appdaemon import AppDaemon
 from appdaemon.models.config.plugin import HASSConfig, StartupConditions
 from appdaemon.plugin_management import PluginBase
 
-from .exceptions import HAEventsSubError
+from .exceptions import HAEventsSubError, HassConnectionError
 from .utils import ServiceCallStatus, hass_check, looped_coro
 
 
@@ -143,9 +143,10 @@ class HassPlugin(PluginBase):
         async with self.create_session() as self.session:
             try:
                 async with self.session.ws_connect(self.config.websocket_url) as self.ws:
+                    if (exc := self.ws.exception()) is not None:
+                        raise HassConnectionError("Failed to connect to Home Assistant websocket") from exc
+
                     async for msg in self.ws:
-                        self.updates_recv += 1
-                        self.bytes_recv += len(msg.data)
                         yield msg
             finally:
                 self.connect_event.clear()
@@ -156,11 +157,13 @@ class HassPlugin(PluginBase):
         Uses :py:meth:`~HassPlugin.process_websocket_json` on :py:attr:`~aiohttp.WSMsgType.TEXT` messages.
         """
         match msg:
-            case aiohttp.WSMessage(type=WSMsgType.TEXT):
+            case aiohttp.WSMessage(type=WSMsgType.TEXT, data=str(data)):
                 # create a separate task for processing messages to keep the message reading task unblocked
+                self.updates_recv += 1
+                self.bytes_recv += len(data)
                 self.AD.loop.create_task(self.process_websocket_json(msg.json()))
-            case aiohttp.WSMessage(type=WSMsgType.ERROR):
-                self.logger.error("Error from aiohttp websocket: %s", msg.json())
+            case aiohttp.WSMessage(type=WSMsgType.ERROR, data=WebSocketError() as err):
+                self.logger.error("Error from aiohttp websocket: %s", err)
             case aiohttp.WSMessage(type=WSMsgType.CLOSE):
                 self.logger.debug("Received %s message", msg.type)
             case _:
