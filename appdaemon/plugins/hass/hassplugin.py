@@ -111,6 +111,12 @@ class HassPlugin(PluginBase):
         await self.session.close()
         self.logger.debug("aiohttp session closed for '%s'", self.name)
 
+    def _create_maintenance_task(self, coro: Coroutine, name: str) -> asyncio.Task:
+        task = self.AD.loop.create_task(coro, name=name)
+        self.maintenance_tasks.append(task)
+        task.add_done_callback(lambda t: self.maintenance_tasks.remove(t))
+        return task
+
     def create_session(self) -> aiohttp.ClientSession:
         """Handles creating an :py:class:`~aiohttp.ClientSession` with the cert information from the plugin config
         and the authorization headers for the `REST API <https://developers.home-assistant.io/docs/api/rest>`_.
@@ -168,6 +174,7 @@ class HassPlugin(PluginBase):
                 # create a separate task for processing messages to keep the message reading task unblocked
                 self.updates_recv += 1
                 self.bytes_recv += len(data)
+                # Intentionally not using self._create_maintenance_task here
                 self.AD.loop.create_task(self.process_websocket_json(msg.json()), name="process_ws_msg")
             case aiohttp.WSMessage(type=WSMsgType.ERROR, data=WebSocketError() as err):
                 self.logger.error("Error from aiohttp websocket: %s", err)
@@ -191,9 +198,7 @@ class HassPlugin(PluginBase):
             case {"type": "auth_ok", "ha_version": ha_version}:
                 self.logger.info("Authenticated to Home Assistant %s", ha_version)
                 # Creating a task here allows the plugin to still receive events as it waits for the startup conditions
-                task = self.AD.loop.create_task(self.__post_auth__(), name="post_auth")
-                self.maintenance_tasks.append(task)
-                task.add_done_callback(lambda t: self.maintenance_tasks.remove(t))
+                self._create_maintenance_task(self.__post_auth__(), name="post_auth")
             case {"type": "auth_invalid", "message": message}:
                 self.logger.error("Failed to authenticate to Home Assistant: %s", message)
                 await self.ws.close()
@@ -229,17 +234,13 @@ class HassPlugin(PluginBase):
             case _:
                 raise HAEventsSubError(-1, f"Unknown response from subscribe_events: {res}")
 
-        self.maintenance_tasks.extend(
-            [
-                self.AD.loop.create_task(
-                    self.looped_coro(self.get_hass_config, self.config.config_sleep_time.total_seconds()),
-                    name="get_hass_config loop"
-                ),
-                self.AD.loop.create_task(
-                    self.looped_coro(self.get_hass_services, self.config.services_sleep_time.total_seconds()),
-                    name="get_hass_services loop"
-                ),
-            ]
+        self._create_maintenance_task(
+            self.looped_coro(self.get_hass_config, self.config.config_sleep_time.total_seconds()),
+            name="get_hass_config loop"
+        )
+        self._create_maintenance_task(
+            self.looped_coro(self.get_hass_services, self.config.services_sleep_time.total_seconds()),
+            name="get_hass_services loop"
         )
 
         if self.first_time:
@@ -545,14 +546,16 @@ class HassPlugin(PluginBase):
                     )
 
         tasks: list[asyncio.Task[Literal[True] | None]] = [
-            self.AD.loop.create_task(cond.event.wait(), name=f"startup condition: {cond}")
+            self._create_maintenance_task(cond.event.wait(), name=f"startup condition: {cond}")
             for cond in self.startup_conditions
         ]  # fmt: skip
 
         if delay := conditions.delay:
             self.logger.info(f"Adding a {delay:.0f}s delay to the {self.name} startup")
-            sleep = self.AD.utility.sleep(delay, timeout_ok=True)
-            task = self.AD.loop.create_task(sleep, name="startup delay")
+            task = self._create_maintenance_task(
+                self.AD.utility.sleep(delay, timeout_ok=True),
+                name="startup delay"
+            )
             tasks.append(task)
 
         self.logger.info(f"Waiting for {len(tasks)} startup condition tasks after {self.time_str()}")
