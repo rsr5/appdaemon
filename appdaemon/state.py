@@ -160,7 +160,7 @@ class State:
             self.state[namespace] = utils.PersistentDict(ns_db_path, safe)
         except Exception as exc:
             raise ade.PersistentNamespaceFailed(namespace, ns_db_path) from exc
-        current_thread = threading.current_thread().getName()
+        current_thread = threading.current_thread().name
         self.logger.info(f"Persistent namespace '{namespace}' initialized from {current_thread}")
         return ns_db_path
 
