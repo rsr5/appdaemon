@@ -817,7 +817,7 @@ class ADAPI:
             >>> self.add_entity('mqtt.living_room_temperature', namespace='mqtt')
 
         """
-        namespace = namespace or self.namespace
+        namespace = namespace if namespace is not None else self.namespace
         return await self.AD.state.add_entity(namespace, entity_id, state, attributes)
 
     @utils.sync_decorator
@@ -850,7 +850,7 @@ class ADAPI:
             >>> if self.entity_exists("mqtt.security_settings", namespace = "mqtt"):
             >>>    #do something
         """
-        namespace = namespace or self.namespace
+        namespace = namespace if namespace is not None else self.namespace
         return self.AD.state.entity_exists(namespace, entity_id)
 
     @utils.sync_decorator
@@ -877,7 +877,7 @@ class ADAPI:
             >>>     #do something specific to scenes
 
         """
-        namespace = namespace or self.namespace
+        namespace = namespace if namespace is not None else self.namespace
         self._check_entity(namespace, entity_id)
         return entity_id.split(".")
 
@@ -907,7 +907,7 @@ class ADAPI:
             >>> self.remove_entity('mqtt.living_room_temperature', namespace = 'mqtt')
 
         """
-        namespace = namespace or self.namespace
+        namespace = namespace if namespace is not None else self.namespace
         await self.AD.state.remove_entity(namespace, entity_id)
 
     @staticmethod
@@ -952,7 +952,7 @@ class ADAPI:
             My current position is 50.8333(Lat), 4.3333(Long)
 
         """
-        namespace = namespace or self.namespace
+        namespace = namespace if namespace is not None else self.namespace
         return self.AD.plugins.get_plugin_meta(namespace)
 
     @utils.sync_decorator
@@ -976,7 +976,7 @@ class ADAPI:
             device_tracker.andrew (Andrew Tracker) is on.
 
         """
-        namespace = namespace or self.namespace
+        namespace = namespace if namespace is not None else self.namespace
         self._check_entity(namespace, entity_id)
         return await self.get_state(
             entity_id=entity_id,
@@ -1584,7 +1584,7 @@ class ADAPI:
         """
         kwargs = dict(new=new, old=old, duration=duration, attribute=attribute, **kwargs)
         kwargs = {k: v for k, v in kwargs.items() if v is not None}
-        namespace = namespace or self.namespace
+        namespace = namespace if namespace is not None else self.namespace
 
         # pre-fill some arguments here
         add_callback = functools.partial(
@@ -1724,9 +1724,10 @@ class ADAPI:
         if kwargs:
             self.logger.warning(f"Extra kwargs passed to get_state, will be ignored: {kwargs}")
 
+        namespace = namespace if namespace is not None else self.namespace
         return await self.AD.state.get_state(
             name=self.name,
-            namespace=namespace or self.namespace,
+            namespace=namespace,
             entity_id=entity_id,
             attribute=attribute,
             default=default,
@@ -1783,7 +1784,7 @@ class ADAPI:
             >>> self.set_state("light.office_1", state="off", namespace="hass")
 
         """
-        namespace = namespace or self.namespace
+        namespace = namespace if namespace is not None else self.namespace
         if check_existence:
             self._check_entity(namespace, entity_id)
         return await self.AD.state.set_state(
@@ -1846,7 +1847,7 @@ class ADAPI:
         self._check_service(service)
         self.logger.debug("register_service: %s, %s", service, kwargs)
 
-        namespace = namespace or self.namespace
+        namespace = namespace if namespace is not None else self.namespace
         try:
             domain, service = service.split("/", 2)
         except ValueError as e:
@@ -1886,7 +1887,7 @@ class ADAPI:
             >>> self.deregister_service("myservices/service1")
 
         """
-        namespace = namespace or self.namespace
+        namespace = namespace if namespace is not None else self.namespace
         self.logger.debug("deregister_service: %s, %s", service, namespace)
         self._check_service(service)
         return self.AD.services.deregister_service(namespace, *service.split("/"), name=self.name)
@@ -1996,7 +1997,7 @@ class ADAPI:
         """
         self.logger.debug("call_service: %s, %s", service, data)
         self._check_service(service)
-        namespace = namespace or self.namespace
+        namespace = namespace if namespace is not None else self.namespace
 
         # Check the entity_id if it exists
         if eid := data.get("entity_id"):
@@ -2054,7 +2055,7 @@ class ADAPI:
                 ])
 
         """
-        namespace = namespace or self.namespace
+        namespace = namespace if namespace is not None else self.namespace
         self.logger.debug("Calling run_sequence() for %s from %s", sequence, self.name)
 
         try:
@@ -2197,11 +2198,12 @@ class ADAPI:
         """
         self.logger.debug(f"Calling listen_event() for {self.name} for {event}: {kwargs}")
 
+        namespace = namespace if namespace is not None else self.namespace
         # pre-fill some arguments here
         add_callback = functools.partial(
             self.AD.events.add_event_callback,
             name=self.name,
-            namespace=namespace or self.namespace,
+            namespace=namespace,
             cb=callback,
             timeout=timeout,
             oneshot=oneshot,
@@ -2311,7 +2313,7 @@ class ADAPI:
             # Convert to float if it's not None
             timeout = utils.parse_timedelta(timeout).total_seconds() if timeout is not None else timeout
             kwargs["timeout"] = timeout
-        namespace = namespace or self.namespace
+        namespace = namespace if namespace is not None else self.namespace
         await self.AD.events.fire_event(namespace, event, **kwargs)
 
     #
@@ -3736,7 +3738,7 @@ class ADAPI:
     #
 
     def get_entity(self, entity: str, namespace: str | None = None, check_existence: bool = True) -> Entity:
-        namespace = namespace or self.namespace
+        namespace = namespace if namespace is not None else self.namespace
         if check_existence:
             self._check_entity(namespace, entity)
         return Entity(self, namespace, entity)
