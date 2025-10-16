@@ -765,9 +765,9 @@ class ADAPI:
         """Ensures that the entity exists in the given namespace"""
         if entity_id is not None and "." in entity_id and not self.AD.state.entity_exists(namespace, entity_id):
             if namespace == "default":
-                self.logger.warning(f"Entity {entity_id} not found in the default namespace")
+                self.logger.warning("Entity %s not found in the default namespace", entity_id)
             else:
-                self.logger.warning(f"Entity {entity_id} not found in namespace {namespace}")
+                self.logger.warning("Entity %s not found in namespace %s", entity_id, namespace)
 
     @staticmethod
     def get_ad_version() -> str:
