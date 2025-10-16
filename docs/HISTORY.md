@@ -8,7 +8,7 @@ None
 
 **Fixes**
 
-None
+Fix for sunrise and sunset with offsets - contributed by [ekutner](https://github.com/ekutner)
 
 **Breaking Changes**
 
