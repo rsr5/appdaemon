@@ -1,6 +1,7 @@
 import threading
 import traceback
 import uuid
+from collections.abc import Mapping
 from copy import copy, deepcopy
 from datetime import timedelta
 from logging import Logger
@@ -482,10 +483,8 @@ class State:
 
     def entity_exists(self, namespace: str, entity: str) -> bool:
         match self.state.get(namespace):
-            case dict(ns_state):
-                match ns_state.get(entity):
-                    case dict():
-                        return True
+            case Mapping() as ns_state:
+                return entity in ns_state
         return False
 
     def get_entity(self, namespace: Optional[str] = None, entity_id: Optional[str] = None, name: Optional[str] = None):
