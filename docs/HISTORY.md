@@ -8,7 +8,8 @@ None
 
 **Fixes**
 
-None
+Fix for sunrise and sunset with offsets - contributed by [ekutner](https://github.com/ekutner)
+Fix for random MQTT disconnects  - contributed by [Xsandor](https://github.com/Xsandor)
 
 **Breaking Changes**
 
