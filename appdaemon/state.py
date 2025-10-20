@@ -79,7 +79,7 @@ class State:
         self.save_all_namespaces()
 
     def namespace_db_path(self, namespace: str) -> Path:
-        return self.namespace_path / f"{namespace}.db"
+        return self.namespace_path / f"{namespace}"
 
     async def add_namespace(
         self,
@@ -853,6 +853,8 @@ class State:
                 case utils.PersistentDict() as state:
                     self.logger.debug("Saving namespace: %s", ns)
                     state.sync()
+                    self.logger.debug("Closing namespace: %s", ns)
+                    state.close()
 
     def save_hybrid_namespaces(self) -> None:
         for ns_name, cfg in self.AD.namespaces.items():
