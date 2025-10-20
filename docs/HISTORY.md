@@ -4,12 +4,13 @@
 
 **Features**
 
-None
+- Added some basic test for persistent namespaces
 
 **Fixes**
 
-Fix for sunrise and sunset with offsets - contributed by [ekutner](https://github.com/ekutner)
-Fix for random MQTT disconnects  - contributed by [Xsandor](https://github.com/Xsandor)
+- Fix for sunrise and sunset with offsets - contributed by [ekutner](https://github.com/ekutner)
+- Fix for random MQTT disconnects  - contributed by [Xsandor](https://github.com/Xsandor)
+- Fix for persistent namespaces in Python 3.12
 
 **Breaking Changes**
 
