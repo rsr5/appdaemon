@@ -1,6 +1,7 @@
 import threading
 import traceback
 import uuid
+from collections.abc import Mapping
 from copy import copy, deepcopy
 from datetime import timedelta
 from logging import Logger
@@ -78,7 +79,7 @@ class State:
         self.save_all_namespaces()
 
     def namespace_db_path(self, namespace: str) -> Path:
-        return self.namespace_path / f"{namespace}.db"
+        return self.namespace_path / f"{namespace}"
 
     async def add_namespace(
         self,
@@ -159,7 +160,7 @@ class State:
             self.state[namespace] = utils.PersistentDict(ns_db_path, safe)
         except Exception as exc:
             raise ade.PersistentNamespaceFailed(namespace, ns_db_path) from exc
-        current_thread = threading.current_thread().getName()
+        current_thread = threading.current_thread().name
         self.logger.info(f"Persistent namespace '{namespace}' initialized from {current_thread}")
         return ns_db_path
 
@@ -482,10 +483,8 @@ class State:
 
     def entity_exists(self, namespace: str, entity: str) -> bool:
         match self.state.get(namespace):
-            case dict(ns_state):
-                match ns_state.get(entity):
-                    case dict():
-                        return True
+            case Mapping() as ns_state:
+                return entity in ns_state
         return False
 
     def get_entity(self, namespace: Optional[str] = None, entity_id: Optional[str] = None, name: Optional[str] = None):
@@ -854,6 +853,8 @@ class State:
                 case utils.PersistentDict() as state:
                     self.logger.debug("Saving namespace: %s", ns)
                     state.sync()
+                    self.logger.debug("Closing namespace: %s", ns)
+                    state.close()
 
     def save_hybrid_namespaces(self) -> None:
         for ns_name, cfg in self.AD.namespaces.items():
