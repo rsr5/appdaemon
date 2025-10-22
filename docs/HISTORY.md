@@ -4,12 +4,13 @@
 
 **Features**
 
-None
+- Added the ``ws_max_msg_size`` config option to the Hass plugin
 
 **Fixes**
 
-Fix for sunrise and sunset with offsets - contributed by [ekutner](https://github.com/ekutner)
-Fix for random MQTT disconnects  - contributed by [Xsandor](https://github.com/Xsandor)
+- Better error handling for receiving huge websocket messages in the Hass plugin
+- Fix for sunrise and sunset with offsets - contributed by [ekutner](https://github.com/ekutner)
+- Fix for random MQTT disconnects  - contributed by [Xsandor](https://github.com/Xsandor)
 
 **Breaking Changes**
 
