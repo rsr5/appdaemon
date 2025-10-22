@@ -8,8 +8,9 @@ None
 
 **Fixes**
 
-Fix for sunrise and sunset with offsets - contributed by [ekutner](https://github.com/ekutner)
-Fix for random MQTT disconnects  - contributed by [Xsandor](https://github.com/Xsandor)
+- Fix for sunrise and sunset with offsets - contributed by [ekutner](https://github.com/ekutner)
+- Fix for random MQTT disconnects  - contributed by [Xsandor](https://github.com/Xsandor)
+- Fix for connecting to Home Assistant with https
 
 **Breaking Changes**
 
