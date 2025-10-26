@@ -75,7 +75,7 @@ async def test_hybrid_writeback(run_app_for_time: AsyncTempTest) -> None:
         "test_n": 10**3,
     }
     async with run_app_for_time("hybrid_namespace_app", 2.2, **app_kwargs) as (ad, caplog):
-        ns_path = ad.state.namespace_db_path(test_ns)
+        ns_path = ad.state.namespace_db_path(test_ns).with_suffix(".db")
         assert ns_path.exists(), f'Namespace file {ns_path} should exist after test, but it does not.'
         assert f"Persistent namespace '{test_ns}' initialized from MainThread" in caplog.text
 
@@ -92,4 +92,5 @@ async def test_hybrid_writeback(run_app_for_time: AsyncTempTest) -> None:
 
     assert "dbm.sqlite3.error" not in caplog.text
 
-    assert not ns_path.exists(), f"Namespace file {ns_path} should not exist after test, but it does."
+    ns_rel_path = ns_path.relative_to(ns_path.parents[2])
+    assert not ns_path.exists(), f"Namespace file {ns_rel_path} should not exist after test, but it does."

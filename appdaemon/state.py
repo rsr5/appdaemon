@@ -218,9 +218,10 @@ class State:
         """Used to remove the file for a created namespace"""
         try:
             state.close()
-            rel_path = state.filepath.relative_to(self.AD.config_dir.parent)
-            if state.filepath.exists():
-                await asyncio.to_thread(state.filepath.unlink)
+            ns_path = state.filepath.with_suffix(".db")
+            rel_path = ns_path.relative_to(self.AD.config_dir.parent)
+            if ns_path.exists():
+                await asyncio.to_thread(ns_path.unlink)
                 self.logger.debug("Removed persistent namespace file '%s'", rel_path)  # fmt: skip
                 return state.filepath
             else:
