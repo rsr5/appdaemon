@@ -91,6 +91,7 @@ def ad_cfg() -> AppDaemonConfig:
             # loglevel="INFO",
             module_debug={
                 "_app_management": "DEBUG",
+                "_state": "DEBUG",
                 # "_events": "DEBUG",
                 # "_scheduler": "DEBUG",
                 "_utility": "DEBUG",
