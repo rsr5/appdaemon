@@ -368,6 +368,9 @@ def parse_datetime(
             result = result.replace(tzinfo=now.tzinfo)
         else:
             result = result.astimezone(now.tzinfo)
+    else:
+        # Need to remove the timezone for now, so the comparison doesn't fail below
+        now = now.replace(tzinfo=None)
 
     # The the days offset is negative, the result can't be forced to today, so set today to False
     if days_offset < 0:

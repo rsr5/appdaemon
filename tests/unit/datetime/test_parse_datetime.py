@@ -1,9 +1,11 @@
+import itertools
 from datetime import date, datetime, timedelta
 from functools import partial
 from typing import Literal
 
 import appdaemon.parse
 import pytest
+import pytz
 from appdaemon.parse import resolve_time_str
 from astral import SunDirection
 from astral.location import Location
@@ -34,6 +36,31 @@ class TestParseDatetime:
                 return
 
         assert result.date() == default_now.date()
+
+    @pytest.mark.parametrize(
+        ("input_", "aware", "today"),
+        itertools.product(
+            ["2025-10-25 13:51:42"],
+            (True, False),
+            (True, False),
+        ),
+    )
+    def test_parse_datetime(
+        self,
+        input_: str,
+        aware: bool,
+        today: bool,
+        parser: partial[datetime],
+    ) -> None:
+        try:
+            result = parser(input_, aware=aware, today=today)
+        except Exception as e:
+            assert False, f"Parsing failed: {e}"
+        else:
+            correct = datetime(2025, 10, 25, 13, 51, 42)
+            if aware:
+                correct = pytz.timezone("America/New_York").localize(correct)
+            assert result == correct
 
     @pytest.mark.parametrize(*ParameterBuilder.sun_params())
     def test_parse_sun_offsets(
