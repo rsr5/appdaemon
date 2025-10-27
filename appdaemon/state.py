@@ -218,20 +218,21 @@ class State:
         """Used to remove the file for a created namespace"""
         try:
             state.close()
-            ns_path = state.filepath.with_suffix(".db")
-            rel_path = ns_path.relative_to(self.AD.config_dir.parent)
-            if ns_path.exists():
-                await asyncio.to_thread(ns_path.unlink)
-                self.logger.debug("Removed persistent namespace file '%s'", rel_path)  # fmt: skip
-                return state.filepath
-            else:
-                self.logger.warning("No file found to remove for namespace '%s'", namespace)
         except Exception:
             self.logger.warning("-" * 60)
-            self.logger.warning("Unexpected error in namespace removal")
+            self.logger.warning("Unexpected error closing namespace '%s':", namespace)
             self.logger.warning("-" * 60)
             self.logger.warning(traceback.format_exc())
             self.logger.warning("-" * 60)
+        else:
+            for ns_file in state.filepath.parent.iterdir():
+                if ns_file.is_file() and ns_file.stem == state.filepath.stem:
+                    try:
+                        await asyncio.to_thread(ns_file.unlink)
+                        self.logger.debug("Removed persistent namespace file '%s'", ns_file.name)
+                    except Exception as e:
+                        self.logger.error('Error removing namespace file %s: %s', ns_file.name, e)
+                        continue
 
     def list_namespaces(self) -> List[str]:
         return list(self.state.keys())

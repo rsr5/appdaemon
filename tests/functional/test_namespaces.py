@@ -3,6 +3,7 @@ import logging
 import uuid
 
 import pytest
+from appdaemon.utils import PersistentDict
 
 from .utils import AsyncTempTest
 
@@ -75,8 +76,14 @@ async def test_hybrid_writeback(run_app_for_time: AsyncTempTest) -> None:
         "test_n": 10**3,
     }
     async with run_app_for_time("hybrid_namespace_app", 2.2, **app_kwargs) as (ad, caplog):
-        ns_path = ad.state.namespace_db_path(test_ns).with_suffix(".db")
-        assert ns_path.exists(), f'Namespace file {ns_path} should exist after test, but it does not.'
+        match ad.state.state.get(test_ns):
+            case PersistentDict() as state:
+                def get_files():
+                    return list(state.filepath.parent.glob(f"{test_ns}*"))
+                files = get_files()
+                assert len(files) > 0, f'Namespace files for {test_ns} should exist, but it does not.'
+            case _:
+                assert False, f"Expected a PersistentDict for namespace '{test_ns}'"
         assert f"Persistent namespace '{test_ns}' initialized from MainThread" in caplog.text
 
         saves = [
@@ -87,10 +94,8 @@ async def test_hybrid_writeback(run_app_for_time: AsyncTempTest) -> None:
         ]
         assert len(saves) == 2, "Expected exactly two saves of hybrid persistent namespace"
 
-    ns_file = ad.state.namespace_db_path(test_ns)
-    assert not ns_file.exists(), "Hybrid namespace file should be removed after test"
+    files = get_files()
+    namespace_files = [f.name for f in state.filepath.parent.iterdir() if f.is_file()]
+    assert not namespace_files, f"Namespace files for {test_ns} should not exist after test, but they do: {namespace_files}"
 
     assert "dbm.sqlite3.error" not in caplog.text
-
-    ns_rel_path = ns_path.relative_to(ns_path.parents[2])
-    assert not ns_path.exists(), f"Namespace file {ns_rel_path} should not exist after test, but it does."

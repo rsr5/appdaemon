@@ -65,6 +65,10 @@ class BasicNamespaceTester(ADAPI):
         full_state = self.test_entity.get_state('all')
         self.log(f"Full state: {full_state}")
 
+    def terminate(self) -> None:
+        self.set_namespace('default')
+        self.remove_namespace(self.custom_test_namespace)
+
 
 class HybridWritebackTester(ADAPI):
     def initialize(self) -> None:
