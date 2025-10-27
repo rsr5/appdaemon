@@ -22,6 +22,9 @@ Python
 `sphinx <https://www.sphinx-doc.org/en/master/>`_ for `readthedocs <https://docs.readthedocs.com/platform/stable/intro/sphinx.html>`_
     Sphinx is a powerful documentation generator that has many features for writing technical documentation. Sphinx is written in Python, and supports documentation written in reStructuredText and Markdown.
 
+IDEs
+----
+
 `VSCode <https://code.visualstudio.com/docs>`_
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The AppDaemon repo itself contains some configuration specifically for VSCode, which makes some routine tasks easier.
