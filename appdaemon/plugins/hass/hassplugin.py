@@ -99,7 +99,7 @@ class HassPlugin(PluginBase):
         self.services = {}
         self._result_futures = {}
         self._silent_results = {}
-        self.request_context = {}
+        self._request_context = {}
         self.startup_conditions = []
         self.maintenance_tasks = []
 
