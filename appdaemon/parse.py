@@ -362,12 +362,12 @@ def parse_datetime(
         case _:
             raise NotImplementedError(f"Unsupported input type: {type(input_)}")
 
-    if aware:
-        if result.tzinfo is None:
-            # Just adds the timezone without changing the time values
-            result = result.replace(tzinfo=now.tzinfo)
-        else:
-            result = result.astimezone(now.tzinfo)
+    # Make the timezones match for the comparison below
+    if result.tzinfo is None:
+        # Just adds the timezone without changing the time values
+        result = result.replace(tzinfo=now.tzinfo)
+    else:
+        result = result.astimezone(now.tzinfo)
 
     # The the days offset is negative, the result can't be forced to today, so set today to False
     if days_offset < 0:
