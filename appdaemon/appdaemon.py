@@ -376,6 +376,7 @@ class AppDaemon:
         self.thread_async.start()
         self.sched.start()
         self.utility.start()
+        self.state.start()
 
         if self.apps_enabled:
             self.app_management.start()

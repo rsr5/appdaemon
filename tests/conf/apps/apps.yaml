@@ -28,3 +28,7 @@ test_run_daily:
 basic_namespace_app:
   module: namespace_app
   class: BasicNamespaceTester
+
+hybrid_namespace_app:
+  module: namespace_app
+  class: HybridWritebackTester

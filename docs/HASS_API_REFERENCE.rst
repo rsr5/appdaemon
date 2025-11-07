@@ -4,6 +4,8 @@ Hass Plugin/API
 About
 -----
 
+.. _hass_plugin:
+
 Hass Plugin
 ~~~~~~~~~~~
 
