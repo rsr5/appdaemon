@@ -3,7 +3,7 @@ from datetime import timedelta
 from ssl import _SSLMethod
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, BeforeValidator, Field, SecretBytes, SecretStr, field_validator, model_validator
+from pydantic import AnyHttpUrl, BaseModel, BeforeValidator, Field, SecretBytes, SecretStr, field_validator, model_validator
 from typing_extensions import deprecated
 
 
@@ -86,8 +86,8 @@ class StartupConditions(BaseModel):
 
 
 class HASSConfig(PluginConfig, extra="forbid"):
-    ha_url: str = "http://supervisor/core"
-    token: SecretStr
+    ha_url: AnyHttpUrl = Field(default="http://supervisor/core", validate_default=True) # pyright: ignore[reportAssignmentType]
+    token: SecretStr = Field(default_factory=lambda: SecretStr(os.environ.get("SUPERVISOR_TOKEN"))) # pyright: ignore[reportArgumentType]
     ha_key: Annotated[SecretStr, deprecated("'ha_key' is deprecated. Please use long lived tokens instead")] | None = None
     appdaemon_startup_conditions: StartupConditions | None = None
     """Startup conditions that apply only when AppDaemon first starts."""
@@ -108,33 +108,21 @@ class HASSConfig(PluginConfig, extra="forbid"):
     config_sleep_time: ParsedTimedelta = timedelta(seconds=60)
     """The sleep time in the background task that updates the config metadata every once in a while"""
 
-    @field_validator("ha_key", mode="after")
-    @classmethod
-    def validate_ha_key(cls, v: Any):
-        if v is None:
-            return os.environ.get("SUPERVISOR_TOKEN")
-        else:
-            return v
-
-    @field_validator("ha_url", mode="after")
-    @classmethod
-    def validate_ha_url(cls, v: str):
-        return v.rstrip("/")
-
     @model_validator(mode="after")
     def custom_validator(self):
-        assert "token" in self.model_fields_set or "ha_key" in self.model_fields_set, (
-            "Either 'token' or 'ha_key' must be set for the Home Assistant plugin"
-        )
+        if self.token.get_secret_value() is None:
+            raise ValueError(
+                "Home Assistant token must be set either via 'token' field or 'SUPERVISOR_TOKEN' env variable"
+            )
         return self
 
     @property
     def websocket_url(self) -> str:
-        return f"{self.ha_url}/api/websocket"
+        return f"{self.ha_url!s}api/websocket"
 
     @property
     def states_api(self) -> str:
-        return f"{self.ha_url}/api/states"
+        return f"{self.ha_url!s}api/states"
 
     def get_entity_api(self, entity_id: str) -> str:
         return f"{self.states_api}/{entity_id}"

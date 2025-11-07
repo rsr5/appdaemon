@@ -456,7 +456,7 @@ class HassPlugin(PluginBase):
                 appropriate.
         """
         kwargs = utils.clean_http_kwargs(kwargs)
-        url = utils.make_endpoint(self.config.ha_url, endpoint)
+        url = utils.make_endpoint(f"{self.config.ha_url!s}", endpoint)
 
         try:
             self.update_perf(
