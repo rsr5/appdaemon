@@ -22,6 +22,9 @@ Python
 `sphinx <https://www.sphinx-doc.org/en/master/>`_ for `readthedocs <https://docs.readthedocs.com/platform/stable/intro/sphinx.html>`_
   Sphinx is a powerful documentation generator that has many features for writing technical documentation. Sphinx is written in Python, and supports documentation written in reStructuredText and Markdown.
 
+IDEs
+----
+
 `VSCode <https://code.visualstudio.com/docs>`_
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The AppDaemon repo itself contains some configuration specifically for VSCode, which makes some routine tasks easier.
@@ -32,6 +35,25 @@ The AppDaemon repo itself contains some configuration specifically for VSCode, w
   The Python extension builds on the built-in testing features in VS Code and provides test discovery, test coverage, and running and debugging tests for Python's built-in unittest framework and pytest.
 `Ruff Extension <https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff>`_
   A Visual Studio Code extension for Ruff, an extremely fast Python linter and code formatter, written in Rust. Available on the Visual Studio Marketplace.
+
+`PyCharm <https://www.jetbrains.com/pycharm/>`_
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PyCharm is another popular Python IDE. To run and debug AppDaemon from PyCharm, create a Python run configuration with the following important settings:
+
+- Run the module (not the ``__main__.py``):
+    Create a new Run/Debug Configuration: Run → Edit Configurations… → + → Python.
+    Select the ``Module`` option and enter the package/module (e.g. ``appdaemon``). Do **not** point the configuration at ``__main__.py`` — run the package/module instead.
+- Set parameters as usual:
+    If you need to pass arguments (for example to point to a config directory), set them in "Parameters" (e.g. ``-c ./conf``).
+- Set the working directory to the project root:
+    Do not set the ``appdaemon`` directory as the working directory; set the project root instead (the directory that contains ``appdaemon``).
+- Disable ``Add source roots to PYTHONPATH``:
+    In the same configuration, uncheck the "Add source roots to PYTHONPATH" option (and "Add content roots to PYTHONPATH" if present in your PyCharm version). This prevents PyCharm from changing import paths in a way that differs from typical runtime environments.
+
+.. figure:: images/pycharm-run-module.png
+   :alt: Run module option
+.. figure:: images/pycharm-disable-add-source-roots.png
+   :alt: Disable "add source roots to PYTHONPATH"
 
 Dev Setup
 ---------
