@@ -2469,7 +2469,7 @@ Here is an example of an App using the API:
 
     class API(Hass):
         def initialize(self):
-            self.register_endpoint(my_callback, "test_endpoint")
+            self.register_endpoint(self.my_callback, "test_endpoint")
 
         def my_callback(self, json_obj, **kwargs):
             self.log(json_obj)
