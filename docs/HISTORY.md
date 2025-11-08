@@ -5,6 +5,7 @@
 **Features**
 
 - Added some basic test for persistent namespaces
+- Using urlib to create endpoints from URLs
 
 **Fixes**
 
@@ -13,6 +14,8 @@
 - Fix for connecting to Home Assistant with https
 - Fix for persistent namespaces in Python 3.12
 - Better error handling for receiving huge websocket messages in the Hass plugin
+- Fix for HTTP method parameters - contributed by [cebtenzzre](https://github.com/cebtenzzre)
+- Fix for entity deletion
 
 **Breaking Changes**
 
