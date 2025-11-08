@@ -862,7 +862,12 @@ def dt_to_str(dt: datetime, tz: tzinfo | None = None, *, round: bool = False) ->
 
 
 def convert_json(data, **kwargs):
-    return json.dumps(data, default=str, **kwargs)
+    def fallback_serializer(obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return str(obj)
+
+    return json.dumps(data, default=fallback_serializer, **kwargs)
 
 
 def get_object_size(obj, seen=None):

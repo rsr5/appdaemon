@@ -455,7 +455,9 @@ class HassPlugin(PluginBase):
             **kwargs (optional): Zero or more keyword arguments. These get used as the data for the method, as
                 appropriate.
         """
-        kwargs = utils.clean_http_kwargs(kwargs)
+        if method.lower() in ("get", "delete"):
+            kwargs = utils.clean_http_kwargs(kwargs)
+
         url = utils.make_endpoint(f"{self.config.ha_url!s}", endpoint)
 
         try:
@@ -471,7 +473,7 @@ class HassPlugin(PluginBase):
                 case "post":
                     http_method = functools.partial(self.session.post, json=kwargs)
                 case "delete":
-                    http_method = functools.partial(self.session.delete, json=kwargs)
+                    http_method = functools.partial(self.session.delete, params=kwargs)
                 case _:
                     raise ValueError(f"Invalid method: {method}")
 
