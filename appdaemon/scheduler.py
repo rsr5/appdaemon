@@ -622,7 +622,10 @@ class Scheduler:
                             args = self.schedule.get(name, {}).get(uuid_, False)
                             if time_to_run and args:
                                 func = utils.unwrapped(args["callback"])
-                                self.logger.debug("Firing scheduled callback %s for '%s'", func.__name__, name)
+                                if func is not None:
+                                    self.logger.debug("Firing scheduled callback %s for '%s'", func.__name__, name)
+                                else:
+                                    self.logger.debug("Firing timeout/cancellation entry for '%s'", name)
                                 await self.exec_schedule(name, args, uuid_)
                         case _:
                             raise ValueError(f"Unknown entry format: {entry}")
@@ -748,7 +751,9 @@ class Scheduler:
                 schedule[name][str(entry)]["kwargs"] = ""
                 for kwarg in self.schedule[name][entry]["kwargs"]:
                     schedule[name][str(entry)]["kwargs"] = utils.get_kwargs(self.schedule[name][entry]["kwargs"])
-                if isinstance(self.schedule[name][entry]["callback"], functools.partial):
+                if self.schedule[name][entry]["callback"] is None:
+                    schedule[name][str(entry)]["callback"] = "cancel_callback"
+                elif isinstance(self.schedule[name][entry]["callback"], functools.partial):
                     schedule[name][str(entry)]["callback"] = self.schedule[name][entry]["callback"].func.__name__
                 else:
                     schedule[name][str(entry)]["callback"] = self.schedule[name][entry]["callback"].__name__
