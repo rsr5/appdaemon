@@ -118,11 +118,11 @@ class HASSConfig(PluginConfig, extra="forbid"):
 
     @property
     def websocket_url(self) -> str:
-        return f"{self.ha_url!s}api/websocket"
+        return f"{self.ha_url!s}/api/websocket"
 
     @property
     def states_api(self) -> str:
-        return f"{self.ha_url!s}api/states"
+        return f"{self.ha_url!s}/api/states"
 
     def get_entity_api(self, entity_id: str) -> str:
         return f"{self.states_api}/{entity_id}"
