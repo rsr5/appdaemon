@@ -19,6 +19,7 @@
 - Fix production mode and scheduler race  - contributed by [cebtenzzre](https://github.com/cebtenzzre)
 - Fix scheduler crash - contributed by [cebtenzzre](https://github.com/cebtenzzre)
 - Fix startup when no plugins are configured - contributed by [cebtenzzre](https://github.com/cebtenzzre)
+- Fix entity persistencre  - contributed by [cebtenzzre](https://github.com/cebtenzzre)
 
 **Features**
 
