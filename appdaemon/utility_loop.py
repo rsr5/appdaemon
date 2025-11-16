@@ -143,7 +143,8 @@ class Utility:
         * Starts the web server if configured
         * Waits for all plugins to initialize
         * Registers services
-        * Runs check_app_updates with UpdateMode.INIT if apps are enabled
+        * Starts the scheduler
+        * Initializes apps if apps are enabled
         """
         self.logger.debug("Starting utility loop")
 
@@ -158,7 +159,20 @@ class Utility:
         # Wait for all plugins to initialize
         await self.AD.plugins.wait_for_plugins()
 
+        if self.AD.stopping:
+            self.logger.debug("AppDaemon already stopping before starting utility loop")
+            return
+
         await self._register_services()
+
+        # Start the scheduler
+        self.AD.sched.start()
+
+        if self.AD.apps_enabled:
+            await self.AD.app_management.start()
+
+            # Fire APPD Started Event
+            await self.AD.events.process_event("global", {"event_type": "appd_started", "data": {}})
 
     async def loop(self):
         """Run the utility loop, which handles the following:
