@@ -140,7 +140,7 @@ class HASSConfig(PluginConfig, extra="forbid"):
         if self.token is not None:
             return {"Authorization": f"Bearer {self.token.get_secret_value()}"}
         elif self.ha_key is not None:
-            return {"x-ha-access": self.ha_key}
+            return {"x-ha-access": self.ha_key.get_secret_value()}
         raise ValueError("Home Assistant token not set")
 
 
