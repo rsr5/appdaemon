@@ -879,7 +879,8 @@ class State:
             self.state[namespace].update(state)
         else:
             # first in case it had been created before, it should be deleted
-            await self.remove_namespace(namespace)
+            if isinstance(self.state.get(namespace), utils.PersistentDict):
+                await self.remove_persistent_namespace(namespace, self.state[namespace])
             self.state[namespace] = state
 
     def update_namespace_state(self, namespace: str | list[str], state: dict):
