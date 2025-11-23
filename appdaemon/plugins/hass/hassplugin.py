@@ -14,7 +14,7 @@ from time import perf_counter
 from typing import Any, Literal, Optional
 
 import aiohttp
-from aiohttp import ClientResponse, ClientResponseError, RequestInfo, WSMsgType, WebSocketError
+from aiohttp import ClientResponseError, WSMsgType, WebSocketError
 from pydantic import BaseModel
 
 import appdaemon.utils as utils
@@ -490,19 +490,15 @@ class HassPlugin(PluginBase):
                     self.logger.error("[%d] HTTP %s: %s %s", cre.status, method.upper(), cre.message, kwargs)
                     return cre
                 else:
-                    match resp:
-                        case ClientResponse(
-                            content_type=content_type,
-                            request_info=RequestInfo(url=url, method=str(meth))
-                        ):
-                            self.logger.debug("%s success from %s", meth, url)
-                            match content_type:
-                                case "application/json":
-                                    return await resp.json()
-                                case "text/plain":
-                                    return await resp.text()
-                                case _:
-                                    self.logger.warning("Unhandled content type: %s", content_type)
+                    self.logger.debug("%s success from %s", resp.method, resp.url)
+                    match resp.content_type:
+                        case "application/json":
+                            return await resp.json()
+                        case "text/plain":
+                            return await resp.text()
+                        case _:
+                            self.logger.warning("Unhandled content type: %s", resp.content_type)
+                            return None
         except asyncio.TimeoutError:
             self.logger.error("Timed out waiting for %s", url)
         except asyncio.CancelledError:
