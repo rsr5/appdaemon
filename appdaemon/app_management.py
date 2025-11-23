@@ -163,28 +163,24 @@ class AppManagement:
     def valid_apps(self) -> set[str]:
         return self.running_apps | self.loaded_globals
 
-    def start(self) -> None:
-        """Start the app management subsystem, which creates async tasks to
+    async def start(self) -> None:
+        """Start the app management subsystem.
 
-        * Initialize admin entities
-        * Call :meth:`~.check_app_updates`
-        * Fire an ``appd_started`` event in the ``global`` namespace.
-
+        This method:
+        * Initializes admin entities
+        * Initializes the dependency manager (INIT mode)
+        * Loads all apps (normal mode)
         """
         if self.AD.apps_enabled:
             self.logger.debug("Starting the app management subsystem")
-            self.AD.loop.create_task(self.init_admin_entities())
+            await self.init_admin_entities()
 
-            task = self.AD.loop.create_task(
-                self.check_app_updates(mode=UpdateMode.INIT),
-                name="check_app_updates",
-            )
-            task.add_done_callback(
-                lambda _: self.AD.loop.create_task(
-                    self.AD.events.process_event("global", {"event_type": "appd_started", "data": {}}),
-                    name="appd_started_event"
-                )
-            )
+            await self.check_app_updates(mode=UpdateMode.INIT)
+
+            self.logger.debug("Loading apps")
+            await self.check_app_updates()
+
+            self.logger.info("App initialization complete")
 
     async def stop(self) -> None:
         """Stop the app management subsystem and all the running apps.

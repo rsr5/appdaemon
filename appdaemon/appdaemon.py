@@ -367,19 +367,14 @@ class AppDaemon:
         """Start AppDaemon, which also starts all the component subsystems like the scheduler, etc.
 
         - :meth:`ThreadAsync <appdaemon.thread_async.ThreadAsync.start>`
-        - :meth:`Scheduler <appdaemon.scheduler.Scheduler.start>`
         - :meth:`Utility <appdaemon.utility_loop.Utility.start>`
-        - :meth:`AppManagement <appdaemon.app_management.AppManagement.start>`
 
+        Note: The scheduler is started by the utility loop after plugins are ready.
         """
         self.logger.debug("Starting AppDaemon")
         self.thread_async.start()
-        self.sched.start()
         self.utility.start()
         self.state.start()
-
-        if self.apps_enabled:
-            self.app_management.start()
 
     async def stop(self) -> None:
         """Stop AppDaemon by calling the stop method of the subsystems.

@@ -5,17 +5,18 @@
 **Features**
 
 - Added some basic test for persistent namespaces
+- Add request context logging for failed HASS calls - contributed by [ekutner](https://github.com/ekutner)
+- Reload modified apps on SIGUSR2 - contributed by [chatziko](https://github.com/chatziko)
 - Using urlib to create endpoints from URLs
 
 **Fixes**
 
 - Fix for sunrise and sunset with offsets - contributed by [ekutner](https://github.com/ekutner)
 - Fix for random MQTT disconnects  - contributed by [Xsandor](https://github.com/Xsandor)
+- Fix reading of httppassword and ha_key - contributed by [cebtenzzre](https://github.com/cebtenzzre)
 - Fix for connecting to Home Assistant with https
 - Fix for persistent namespaces in Python 3.12
 - Better error handling for receiving huge websocket messages in the Hass plugin
-- Fix for HTTP method parameters - contributed by [cebtenzzre](https://github.com/cebtenzzre)
-- Fix for entity deletion
 
 **Breaking Changes**
 

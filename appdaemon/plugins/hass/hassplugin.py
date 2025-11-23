@@ -80,6 +80,7 @@ class HassPlugin(PluginBase):
 
     _result_futures: dict[int, asyncio.Future]
     _silent_results: dict[int, bool]
+    _request_context: dict[int, dict[str, Any]]
     startup_conditions: list[StartupWaitCondition]
     maintenance_tasks: list[asyncio.Task]
     """List of tasks that run in the background as part of the plugin operation. These are tracked because they might
@@ -98,6 +99,7 @@ class HassPlugin(PluginBase):
         self.services = {}
         self._result_futures = {}
         self._silent_results = {}
+        self._request_context = {}
         self.startup_conditions = []
         self.maintenance_tasks = []
 
@@ -270,6 +272,7 @@ class HassPlugin(PluginBase):
     @utils.warning_decorator(error_text="Unexpected error during receive_result")
     async def receive_result(self, resp: dict):
         silent = self._silent_results.pop(resp["id"], False) or self.AD.config.suppress_log_messages
+        request_context = self._request_context.pop(resp["id"], {})
 
         if (future := self._result_futures.pop(resp["id"], None)) is not None:
             if not future.done():
@@ -286,9 +289,9 @@ class HassPlugin(PluginBase):
                 case True:
                     self.logger.debug(f"Received successful result from ID {resp['id']}")
                 case False:
-                    self.logger.warning("Error with websocket result: %s: %s", resp["error"]["code"], resp["error"]["message"])
+                    self.logger.warning("Error with websocket result: %s: %s: request=%s", resp["error"]["code"], resp["error"]["message"], str(request_context))
                 case None:
-                    self.logger.error(f"Invalid response success value: {resp['success']}")
+                    self.logger.error(f"Invalid response success value: {resp['success']} for request: {str(request_context)}")
 
     @utils.warning_decorator(error_text="Unexpected error during receive_event")
     async def receive_event(self, event: dict[str, Any]) -> None:
@@ -416,6 +419,7 @@ class HassPlugin(PluginBase):
         future = self.AD.loop.create_future()
         self._result_futures[self.id] = future
         self._silent_results[self.id] = silent
+        self._request_context[self.id] = request
 
         try:
             timeout = utils.parse_timedelta(self.config.ws_timeout if timeout is None else timeout)
@@ -598,6 +602,7 @@ class HassPlugin(PluginBase):
                             fut.cancel()
                     self._result_futures.clear()
                     self._silent_results.clear()
+                    self._request_context.clear()
 
                     # remove callback from getting local events
                     await self.AD.callbacks.clear_callbacks(self.name)

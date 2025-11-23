@@ -252,6 +252,8 @@ restart the normal container:
 
 You can also append any other AppDaemon flags to the end of the command line if desired, e.g. to use time travel.
 
+Note that when using ``docker compose``, you can add required flags via the ``command:`` directive, such as ``command: -D DEBUG``.
+
 Timezones
 ^^^^^^^^^
 
