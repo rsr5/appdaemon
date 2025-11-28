@@ -3,7 +3,7 @@ import sys
 import threading
 import traceback
 import uuid
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from copy import copy, deepcopy
 from datetime import timedelta
 from enum import Enum
@@ -836,21 +836,25 @@ class State:
 
         plugin = self.AD.plugins.get_plugin_object(namespace)
 
-        if set_plugin_state := getattr(plugin, "set_plugin_state", False):
+        plugin_handled = False
+        set_plugin_state: Callable[..., Awaitable[dict[str, Any] | None]] | None
+        if (set_plugin_state := getattr(plugin, "set_plugin_state", None)) is not None:
             # We assume that the state change will come back to us via the plugin
             self.logger.debug("sending event to plugin")
 
-            result = await set_plugin_state( # pyright: ignore[reportCallIssue]
+            result = await set_plugin_state(
                 namespace,
                 entity,
                 state=new_state["state"],
-                attributes=new_state["attributes"]
-            )  # fmt: skip
+                attributes=new_state["attributes"],
+            )
             if result is not None:
                 if "entity_id" in result:
                     result.pop("entity_id")
                 self.state[namespace][entity] = self.parse_state(namespace, entity, **result)
-        else:
+                plugin_handled = True
+
+        if not plugin_handled:
             # Set the state locally
             self.state[namespace][entity] = new_state
             # Fire the event locally

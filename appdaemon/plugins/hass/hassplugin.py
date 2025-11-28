@@ -881,7 +881,7 @@ class HassPlugin(PluginBase):
         entity_id: str,
         state: Any | None = None,
         attributes: Any | None = None,
-    ):
+    ) -> dict[str, Any] | None:
         self.logger.debug("set_plugin_state() %s %s %s %s", namespace, entity_id, state, attributes)
 
         # if we get a request for not our namespace something has gone very wrong
@@ -892,7 +892,15 @@ class HassPlugin(PluginBase):
             api_url = self.config.get_entity_api(entity_id)
             return await self.http_method("post", api_url, state=state, attributes=attributes)
 
-        return await safe_set_state(self)
+        resp = await safe_set_state(self)
+        match resp:
+            case ClientResponseError(message=str(msg)):
+                self.logger.error("Error setting state: %s", msg)
+                return None
+            case dict():
+                return resp
+            case _:
+                return None
 
     @utils.warning_decorator(error_text="Unexpected error getting state")
     async def get_plugin_state(
