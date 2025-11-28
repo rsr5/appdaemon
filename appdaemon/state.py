@@ -9,7 +9,7 @@ from datetime import timedelta
 from enum import Enum
 from logging import Logger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Awaitable, List, Literal, Optional, Protocol, Set, overload
+from typing import TYPE_CHECKING, Any, Literal, Optional, Protocol, overload
 
 from . import exceptions as ade
 from . import utils
@@ -51,7 +51,7 @@ class State:
     name: str = "_state"
     state: dict[str, dict[str, Any] | utils.PersistentDict]
 
-    app_added_namespaces: Set[str]
+    app_added_namespaces: set[str]
 
     def __init__(self, ad: "AppDaemon"):
         self.AD = ad
@@ -234,7 +234,7 @@ class State:
                         self.logger.error('Error removing namespace file %s: %s', ns_file.name, e)
                         continue
 
-    def list_namespaces(self) -> List[str]:
+    def list_namespaces(self) -> list[str]:
         return list(self.state.keys())
 
     def list_namespace_entities(self, namespace: str) -> list[str]:
