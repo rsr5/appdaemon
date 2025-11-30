@@ -121,13 +121,6 @@ class HASSConfig(PluginConfig, extra="forbid"):
         return self.ha_url_yarl / "api/websocket"
 
     @property
-    def states_api(self) -> URL:
-        return self.ha_url_yarl / "api/states"
-
-    def get_entity_api(self, entity_id: str) -> URL:
-        return self.states_api / entity_id
-
-    @property
     def auth_json(self) -> dict:
         if self.token is not None:
             return {"type": "auth", "access_token": self.token.get_secret_value()}
