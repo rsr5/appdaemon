@@ -14,9 +14,8 @@ from time import perf_counter
 from typing import Any, Literal, Optional
 
 import aiohttp
-from aiohttp import ClientResponse, ClientResponseError, RequestInfo, WSMsgType, WebSocketError
+from aiohttp import ClientResponse, ClientResponseError, RequestInfo, WebSocketError, WSMsgType
 from pydantic import BaseModel
-from yarl import URL
 
 import appdaemon.utils as utils
 from appdaemon.appdaemon import AppDaemon
@@ -457,7 +456,7 @@ class HassPlugin(PluginBase):
                 appropriate.
         """
         kwargs = utils.clean_http_kwargs(kwargs)
-        url = URL(self.config.ha_url) / endpoint.lstrip("/")
+        url = self.config.ha_url / endpoint.lstrip("/")
 
         try:
             self.update_perf(
