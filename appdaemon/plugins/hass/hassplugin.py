@@ -14,7 +14,7 @@ from time import perf_counter
 from typing import Any, Literal, Optional
 
 import aiohttp
-from aiohttp import ClientResponse, ClientResponseError, RequestInfo, WebSocketError, WSMsgType
+from aiohttp import ClientResponseError, WebSocketError, WSMsgType
 from pydantic import BaseModel
 
 import appdaemon.utils as utils
@@ -134,7 +134,7 @@ class HassPlugin(PluginBase):
             timeout=aiohttp.ClientTimeout(
                 connect=connect_timeout_secs,
                 sock_connect=connect_timeout_secs,
-            )
+            ),
         )
 
     async def websocket_msg_factory(self) -> AsyncGenerator[aiohttp.WSMessage]:
@@ -233,14 +233,8 @@ class HassPlugin(PluginBase):
             case _:
                 raise HAEventsSubError(-1, f"Unknown response from subscribe_events: {res}")
 
-        self._create_maintenance_task(
-            self.looped_coro(self.get_hass_config, self.config.config_sleep_time.total_seconds()),
-            name="get_hass_config loop"
-        )
-        self._create_maintenance_task(
-            self.looped_coro(self.get_hass_services, self.config.services_sleep_time.total_seconds()),
-            name="get_hass_services loop"
-        )
+        self._create_maintenance_task(self.looped_coro(self.get_hass_config, self.config.config_sleep_time.total_seconds()), name="get_hass_config loop")
+        self._create_maintenance_task(self.looped_coro(self.get_hass_services, self.config.services_sleep_time.total_seconds()), name="get_hass_services loop")
 
         if self.first_time:
             conditions = self.config.appdaemon_startup_conditions
@@ -549,10 +543,7 @@ class HassPlugin(PluginBase):
 
         if delay := conditions.delay:
             self.logger.info(f"Adding a {delay:.0f}s delay to the {self.name} startup")
-            task = self._create_maintenance_task(
-                self.AD.utility.sleep(delay, timeout_ok=True),
-                name="startup delay"
-            )
+            task = self._create_maintenance_task(self.AD.utility.sleep(delay, timeout_ok=True), name="startup delay")
             tasks.append(task)
 
         self.logger.info(f"Waiting for {len(tasks)} startup condition tasks after {self.time_str()}")
@@ -907,7 +898,7 @@ class HassPlugin(PluginBase):
         match resp:
             case ClientResponseError(message=str(msg)):
                 self.logger.error("Error getting state: %s", msg)
-            case (dict() | None):
+            case dict() | None:
                 return resp
             case _:
                 raise ValueError(f"Unexpected result from get_plugin_state: {resp}")
