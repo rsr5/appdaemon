@@ -3,13 +3,13 @@ import sys
 import threading
 import traceback
 import uuid
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from copy import copy, deepcopy
 from datetime import timedelta
 from enum import Enum
 from logging import Logger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Awaitable, List, Literal, Optional, Protocol, Set, overload
+from typing import TYPE_CHECKING, Any, Literal, Optional, Protocol, overload
 
 from . import exceptions as ade
 from . import utils
@@ -51,7 +51,7 @@ class State:
     name: str = "_state"
     state: dict[str, dict[str, Any] | utils.PersistentDict]
 
-    app_added_namespaces: Set[str]
+    app_added_namespaces: set[str]
 
     def __init__(self, ad: "AppDaemon"):
         self.AD = ad
@@ -234,7 +234,7 @@ class State:
                         self.logger.error('Error removing namespace file %s: %s', ns_file.name, e)
                         continue
 
-    def list_namespaces(self) -> List[str]:
+    def list_namespaces(self) -> list[str]:
         return list(self.state.keys())
 
     def list_namespace_entities(self, namespace: str) -> list[str]:
@@ -836,21 +836,25 @@ class State:
 
         plugin = self.AD.plugins.get_plugin_object(namespace)
 
-        if set_plugin_state := getattr(plugin, "set_plugin_state", False):
+        plugin_handled = False
+        set_plugin_state: Callable[..., Awaitable[dict[str, Any] | None]] | None
+        if (set_plugin_state := getattr(plugin, "set_plugin_state", None)) is not None:
             # We assume that the state change will come back to us via the plugin
             self.logger.debug("sending event to plugin")
 
-            result = await set_plugin_state( # pyright: ignore[reportCallIssue]
+            result = await set_plugin_state(
                 namespace,
                 entity,
                 state=new_state["state"],
-                attributes=new_state["attributes"]
-            )  # fmt: skip
+                attributes=new_state["attributes"],
+            )
             if result is not None:
                 if "entity_id" in result:
                     result.pop("entity_id")
                 self.state[namespace][entity] = self.parse_state(namespace, entity, **result)
-        else:
+                plugin_handled = True
+
+        if not plugin_handled:
             # Set the state locally
             self.state[namespace][entity] = new_state
             # Fire the event locally
