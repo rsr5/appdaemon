@@ -86,7 +86,7 @@ class StartupConditions(BaseModel):
 
 
 class HASSConfig(PluginConfig, extra="forbid"):
-    ha_url: AnyHttpUrl = Field(default="http://supervisor/core", validate_default=True)
+    ha_url: Annotated[str, BeforeValidator(lambda u: str(AnyHttpUrl(u)))] = Field(default="http://supervisor/core", validate_default=True)
     token: SecretStr = Field(default_factory=lambda: SecretStr(os.environ.get("SUPERVISOR_TOKEN"))) # pyright: ignore[reportArgumentType]
     ha_key: Annotated[SecretStr, deprecated("'ha_key' is deprecated. Please use long lived tokens instead")] | None = None
     appdaemon_startup_conditions: StartupConditions | None = None
@@ -118,7 +118,7 @@ class HASSConfig(PluginConfig, extra="forbid"):
 
     @property
     def websocket_url(self) -> URL:
-        return self.ha_url_yarl / "api/websocket"
+        return URL(self.ha_url) / "api/websocket"
 
     @property
     def auth_json(self) -> dict:
@@ -135,10 +135,6 @@ class HASSConfig(PluginConfig, extra="forbid"):
         elif self.ha_key is not None:
             return {"x-ha-access": self.ha_key}
         raise ValueError("Home Assistant token not set")
-
-    @property
-    def ha_url_yarl(self) -> URL:
-        return URL(str(self.ha_url).rstrip('/') + '/')
 
 
 class MQTTConfig(PluginConfig):

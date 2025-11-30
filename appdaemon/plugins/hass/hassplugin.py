@@ -16,6 +16,7 @@ from typing import Any, Literal, Optional
 import aiohttp
 from aiohttp import ClientResponse, ClientResponseError, RequestInfo, WSMsgType, WebSocketError
 from pydantic import BaseModel
+from yarl import URL
 
 import appdaemon.utils as utils
 from appdaemon.appdaemon import AppDaemon
@@ -456,7 +457,7 @@ class HassPlugin(PluginBase):
                 appropriate.
         """
         kwargs = utils.clean_http_kwargs(kwargs)
-        url = self.config.ha_url_yarl / endpoint.lstrip("/")
+        url = URL(self.config.ha_url) / endpoint.lstrip("/")
 
         try:
             self.update_perf(
