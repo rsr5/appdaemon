@@ -1173,13 +1173,6 @@ def clean_http_kwargs(val: Any) -> Any:
     return pruned
 
 
-def make_endpoint(base: str | AnyHttpUrl, endpoint: str) -> str:
-    """Formats a URL appropriately with slashes"""
-    parsed = parse.urlparse(str(base))
-    result = parsed._replace(path=endpoint)
-    return parse.urlunparse(result)
-
-
 def unwrapped(func: Callable) -> Callable:
     while hasattr(func, "__wrapped__"):
         func = func.__wrapped__
