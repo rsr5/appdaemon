@@ -3,29 +3,11 @@ from datetime import timedelta
 from ssl import _SSLMethod
 from typing import Annotated, Any, Literal
 
-from pydantic import (
-    AnyHttpUrl,
-    BaseModel,
-    BeforeValidator,
-    Field,
-    PlainSerializer,
-    SecretBytes,
-    SecretStr,
-    field_validator,
-    model_validator,
-)
+from pydantic import AnyHttpUrl, BaseModel, BeforeValidator, Field, SecretBytes, SecretStr, field_validator, model_validator
 from typing_extensions import deprecated
 from yarl import URL
 
 from .common import CoercedPath, ParsedTimedelta
-
-
-def _validate_url(v: Any) -> URL:
-    """Validate and convert to yarl.URL using Pydantic's AnyHttpUrl validator."""
-    return URL(str(AnyHttpUrl(v)).rstrip('/') + '/')
-
-
-ValidatedURL = Annotated[URL, BeforeValidator(_validate_url), PlainSerializer(str, return_type=str)]
 
 
 class PluginConfig(BaseModel, extra="allow"):
@@ -104,7 +86,7 @@ class StartupConditions(BaseModel):
 
 
 class HASSConfig(PluginConfig, extra="forbid"):
-    ha_url: ValidatedURL = Field(default="http://supervisor/core", validate_default=True)
+    ha_url: AnyHttpUrl = Field(default="http://supervisor/core", validate_default=True)
     token: SecretStr = Field(default_factory=lambda: SecretStr(os.environ.get("SUPERVISOR_TOKEN"))) # pyright: ignore[reportArgumentType]
     ha_key: Annotated[SecretStr, deprecated("'ha_key' is deprecated. Please use long lived tokens instead")] | None = None
     appdaemon_startup_conditions: StartupConditions | None = None
@@ -136,11 +118,11 @@ class HASSConfig(PluginConfig, extra="forbid"):
 
     @property
     def websocket_url(self) -> URL:
-        return self.ha_url / "api/websocket"
+        return self.ha_url_yarl / "api/websocket"
 
     @property
     def states_api(self) -> URL:
-        return self.ha_url / "api/states"
+        return self.ha_url_yarl / "api/states"
 
     def get_entity_api(self, entity_id: str) -> URL:
         return self.states_api / entity_id
@@ -160,6 +142,10 @@ class HASSConfig(PluginConfig, extra="forbid"):
         elif self.ha_key is not None:
             return {"x-ha-access": self.ha_key}
         raise ValueError("Home Assistant token not set")
+
+    @property
+    def ha_url_yarl(self) -> URL:
+        return URL(str(self.ha_url).rstrip('/') + '/')
 
 
 class MQTTConfig(PluginConfig):
