@@ -7,7 +7,7 @@
 - Added some basic test for persistent namespaces
 - Add request context logging for failed HASS calls - contributed by [ekutner](https://github.com/ekutner)
 - Reload modified apps on SIGUSR2 - contributed by [chatziko](https://github.com/chatziko)
-- Using urlib to create endpoints from URLs
+- Using urlib to create endpoints from URLs - contributed by [cebtenzzre](https://github.com/cebtenzzre)
 
 **Fixes**
 
@@ -17,6 +17,8 @@
 - Fix for connecting to Home Assistant with https
 - Fix for persistent namespaces in Python 3.12
 - Better error handling for receiving huge websocket messages in the Hass plugin
+- Fix for matching in get_history() - contributed by [cebtenzzre](https://github.com/cebtenzzre)
+- Fix set_state() error handling - contributed by [cebtenzzre](https://github.com/cebtenzzre)
 
 **Breaking Changes**
 
