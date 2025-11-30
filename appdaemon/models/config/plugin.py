@@ -3,12 +3,29 @@ from datetime import timedelta
 from ssl import _SSLMethod
 from typing import Annotated, Any, Literal
 
-from pydantic import AnyHttpUrl, BaseModel, BeforeValidator, Field, SecretBytes, SecretStr, field_validator, model_validator
+from pydantic import (
+    AnyHttpUrl,
+    BaseModel,
+    BeforeValidator,
+    Field,
+    PlainSerializer,
+    SecretBytes,
+    SecretStr,
+    field_validator,
+    model_validator,
+)
 from typing_extensions import deprecated
 from yarl import URL
 
-
 from .common import CoercedPath, ParsedTimedelta
+
+
+def _validate_url(v: Any) -> URL:
+    """Validate and convert to yarl.URL using Pydantic's AnyHttpUrl validator."""
+    return URL(str(AnyHttpUrl(v)).rstrip('/') + '/')
+
+
+ValidatedURL = Annotated[URL, BeforeValidator(_validate_url), PlainSerializer(str, return_type=str)]
 
 
 class PluginConfig(BaseModel, extra="allow"):
@@ -87,7 +104,7 @@ class StartupConditions(BaseModel):
 
 
 class HASSConfig(PluginConfig, extra="forbid"):
-    ha_url: URL = Field(default="http://supervisor/core", validate_default=True)
+    ha_url: ValidatedURL = Field(default="http://supervisor/core", validate_default=True)
     token: SecretStr = Field(default_factory=lambda: SecretStr(os.environ.get("SUPERVISOR_TOKEN"))) # pyright: ignore[reportArgumentType]
     ha_key: Annotated[SecretStr, deprecated("'ha_key' is deprecated. Please use long lived tokens instead")] | None = None
     appdaemon_startup_conditions: StartupConditions | None = None
@@ -108,11 +125,6 @@ class HASSConfig(PluginConfig, extra="forbid"):
     """The sleep time in the background task that updates the internal list of available services every once in a while"""
     config_sleep_time: ParsedTimedelta = timedelta(seconds=60)
     """The sleep time in the background task that updates the config metadata every once in a while"""
-
-    @field_validator("ha_url", mode="before")
-    @classmethod
-    def validate_ha_url(cls, v: Any) -> URL:
-        return URL(str(AnyHttpUrl(v)).rstrip('/') + '/')
 
     @model_validator(mode="after")
     def custom_validator(self):
