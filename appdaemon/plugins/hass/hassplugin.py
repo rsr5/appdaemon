@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from time import perf_counter
 from typing import Any, Literal, Optional
+from yarl import URL
 
 import aiohttp
 from aiohttp import ClientResponse, ClientResponseError, RequestInfo, WSMsgType, WebSocketError
@@ -441,7 +442,7 @@ class HassPlugin(PluginBase):
     async def http_method(
         self,
         method: Literal["get", "post", "delete"],
-        endpoint: str,
+        endpoint: str | URL,
         timeout: str | int | float | timedelta | None = 10,
         **kwargs: Any,
     ) -> str | dict[str, Any] | list[Any] | aiohttp.ClientResponseError | None:
@@ -456,11 +457,11 @@ class HassPlugin(PluginBase):
                 appropriate.
         """
         kwargs = utils.clean_http_kwargs(kwargs)
-        url = utils.make_endpoint(f"{self.config.ha_url!s}", endpoint)
+        url = self.config.ha_url.join(URL(endpoint))
 
         try:
             self.update_perf(
-                bytes_sent=len(url) + len(json.dumps(kwargs).encode("utf-8")),
+                bytes_sent=len(str(url)) + len(json.dumps(kwargs).encode("utf-8")),
                 requests_sent=1,
             )
 

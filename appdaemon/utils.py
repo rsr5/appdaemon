@@ -1167,15 +1167,6 @@ def clean_http_kwargs(val: Any) -> Any:
     return pruned
 
 
-def make_endpoint(base: str, endpoint: str) -> str:
-    """Formats a URL appropriately with slashes"""
-    if not endpoint.startswith(base):
-        result = f"{base}/{endpoint.strip('/')}"
-    else:
-        result = endpoint
-    return result.strip("/")
-
-
 def unwrapped(func: Callable) -> Callable:
     while hasattr(func, "__wrapped__"):
         func = func.__wrapped__
