@@ -24,14 +24,13 @@ from logging import Logger
 from pathlib import Path
 from time import perf_counter
 from typing import TYPE_CHECKING, Any, Callable, Coroutine, Literal, ParamSpec, Protocol, TypeVar
-from urllib import parse
 
 import dateutil.parser
 import tomli
 import tomli_w
 import yaml
 from astral.location import Location
-from pydantic import AnyHttpUrl, BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError
 from pytz import BaseTzInfo
 
 from appdaemon.parse import parse_datetime
