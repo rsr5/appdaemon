@@ -3,9 +3,9 @@ from datetime import timedelta
 from ssl import _SSLMethod
 from typing import Annotated, Any, Literal
 
-from pydantic import AnyHttpUrl, BaseModel, BeforeValidator, Field, SecretBytes, SecretStr, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, PlainSerializer, SecretBytes, SecretStr, field_validator, model_validator
 from typing_extensions import deprecated
-
+from yarl import URL
 
 from .common import CoercedPath, ParsedTimedelta
 
@@ -86,7 +86,11 @@ class StartupConditions(BaseModel):
 
 
 class HASSConfig(PluginConfig, extra="forbid"):
-    ha_url: AnyHttpUrl = Field(default="http://supervisor/core", validate_default=True) # pyright: ignore[reportAssignmentType]
+    ha_url: Annotated[
+        URL,
+        BeforeValidator(URL),
+        PlainSerializer(str),
+    ] = Field(default="http://supervisor/core", validate_default=True) # pyright: ignore[reportAssignmentType]
     token: SecretStr = Field(default_factory=lambda: SecretStr(os.environ.get("SUPERVISOR_TOKEN"))) # pyright: ignore[reportArgumentType]
     ha_key: Annotated[SecretStr, deprecated("'ha_key' is deprecated. Please use long lived tokens instead")] | None = None
     appdaemon_startup_conditions: StartupConditions | None = None
@@ -108,6 +112,8 @@ class HASSConfig(PluginConfig, extra="forbid"):
     config_sleep_time: ParsedTimedelta = timedelta(seconds=60)
     """The sleep time in the background task that updates the config metadata every once in a while"""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     @model_validator(mode="after")
     def custom_validator(self):
         if self.token.get_secret_value() is None:
@@ -117,15 +123,8 @@ class HASSConfig(PluginConfig, extra="forbid"):
         return self
 
     @property
-    def websocket_url(self) -> str:
-        return f"{self.ha_url!s}api/websocket"
-
-    @property
-    def states_api(self) -> str:
-        return f"{self.ha_url!s}api/states"
-
-    def get_entity_api(self, entity_id: str) -> str:
-        return f"{self.states_api}/{entity_id}"
+    def websocket_url(self) -> URL:
+        return self.ha_url / "api/websocket"
 
     @property
     def auth_json(self) -> dict:
