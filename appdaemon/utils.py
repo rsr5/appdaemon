@@ -862,7 +862,12 @@ def dt_to_str(dt: datetime, tz: tzinfo | None = None, *, round: bool = False) ->
 
 
 def convert_json(data, **kwargs):
-    return json.dumps(data, default=str, **kwargs)
+    def fallback_serializer(obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return str(obj)
+
+    return json.dumps(data, default=fallback_serializer, **kwargs)
 
 
 def get_object_size(obj, seen=None):
@@ -1165,15 +1170,6 @@ def clean_http_kwargs(val: Any) -> Any:
     cleaned = clean_kwargs(val, http=True)
     pruned = remove_literals(cleaned, (None, False))
     return pruned
-
-
-def make_endpoint(base: str, endpoint: str) -> str:
-    """Formats a URL appropriately with slashes"""
-    if not endpoint.startswith(base):
-        result = f"{base}/{endpoint.strip('/')}"
-    else:
-        result = endpoint
-    return result.strip("/")
 
 
 def unwrapped(func: Callable) -> Callable:
