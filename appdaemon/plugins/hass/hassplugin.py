@@ -14,7 +14,7 @@ from time import perf_counter
 from typing import Any, Literal, Optional
 
 import aiohttp
-from aiohttp import ClientResponse, ClientResponseError, RequestInfo, WSMsgType, WebSocketError
+from aiohttp import ClientResponse, ClientResponseError, RequestInfo, WebSocketError, WSMsgType
 from pydantic import BaseModel
 
 import appdaemon.utils as utils
@@ -460,11 +460,11 @@ class HassPlugin(PluginBase):
                 appropriate.
         """
         kwargs = utils.clean_http_kwargs(kwargs)
-        url = utils.make_endpoint(f"{self.config.ha_url!s}", endpoint)
+        url = self.config.ha_url / endpoint.lstrip("/")
 
         try:
             self.update_perf(
-                bytes_sent=len(url) + len(json.dumps(kwargs).encode("utf-8")),
+                bytes_sent=len(str(url)) + len(json.dumps(kwargs).encode("utf-8")),
                 requests_sent=1,
             )
 
@@ -475,7 +475,7 @@ class HassPlugin(PluginBase):
                 case "post":
                     http_method = functools.partial(self.session.post, json=kwargs)
                 case "delete":
-                    http_method = functools.partial(self.session.delete, json=kwargs)
+                    http_method = functools.partial(self.session.delete, params=kwargs)
                 case _:
                     raise ValueError(f"Invalid method: {method}")
 
@@ -889,8 +889,7 @@ class HassPlugin(PluginBase):
 
         @utils.warning_decorator(error_text=f"Error setting state for {entity_id}")
         async def safe_set_state(self: "HassPlugin"):
-            api_url = self.config.get_entity_api(entity_id)
-            return await self.http_method("post", api_url, state=state, attributes=attributes)
+            return await self.http_method("post", f"api/states/{entity_id}", state=state, attributes=attributes)
 
         return await safe_set_state(self)
 
