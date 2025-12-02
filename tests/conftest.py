@@ -6,13 +6,12 @@ from datetime import datetime
 
 import pytest
 import pytest_asyncio
+from appdaemon import AppDaemon
 from appdaemon.dependency_manager import DependencyManager
 from appdaemon.logging import Logging
 from appdaemon.models.config.app import AppConfig
 from appdaemon.models.config.appdaemon import AppDaemonConfig
 from appdaemon.utils import format_timedelta, recursive_get_files
-
-from appdaemon import AppDaemon
 
 logger = logging.getLogger("AppDaemon._test")
 
