@@ -465,9 +465,9 @@ class Hass(ADBase, ADAPI):
         self,
         service: str,
         namespace: str | None = None,
-        timeout: str | int | float | None = None,
+        timeout: str | int | float | None = None,  # used by the sync_decorator
         callback: Callable[[Any], Any] | None = None,
-        **kwargs
+        **kwargs,
     ) -> Any:
         """Calls a Service within AppDaemon.
 
@@ -552,7 +552,8 @@ class Hass(ADBase, ADAPI):
         """
         # We just wrap the ADAPI.call_service method here to add some additional arguments and docstrings
         kwargs = utils.remove_literals(kwargs, (None,))
-        return await super().call_service(service, namespace, timeout=timeout, callback=callback, **kwargs)
+        # We intentionally don't pass the timeout kwarg here because it's applied by the sync_decorator
+        return await super().call_service(service, namespace, callback=callback, **kwargs)
 
     def get_service_info(self, service: str) -> dict | None:
         """Get some information about what kind of data the service expects to receive, which is helpful for debugging.
@@ -1668,3 +1669,120 @@ class Hass(ADBase, ADAPI):
         information.
         """
         return self._template_command('label_entities', label_name_or_id)
+
+    # Conversation
+    # https://developers.home-assistant.io/docs/intent_conversation_api
+
+    def process_conversation(
+        self,
+        text: str,
+        language: str | None = None,
+        agent_id: str | None = None,
+        conversation_id: str | None = None,
+        *,
+        namespace: str | None = None,
+        timeout: str | int | float | None = None,
+        hass_timeout: str | int | float | None = None,
+        callback: ServiceCallback | None = None,
+        return_response: bool = True,
+    ) -> dict[str, Any]:
+        """Send a message to a conversation agent for processing.
+        
+        This action is able to return 
+        `response data <https://www.home-assistant.io/docs/scripts/perform-actions/#use-templates-to-handle-response-data>`_.
+        The response is the same response as for the `/api/conversation/process API <https://developers.home-assistant.io/docs/intent_conversation_api#conversation-response>`_.
+
+        See the docs on the `conversation integration <https://www.home-assistant.io/integrations/conversation/>`__ for
+        more information.
+
+        Args:
+            text (str): Transcribed text input to send to the conversation agent.
+            language (str, optional): Language of the text. Defaults to None.
+            agent_id (str, optional): ID of conversation agent. The conversation agent is the brains of the assistant.
+                It processes the incoming text commands. Defaults to None.
+            conversation_id (str, optional): ID of a new or previous conversation. Will continue an old conversation
+                or start a new one. Defaults to None.
+            namespace (str, optional): If provided, changes the namespace for the service call. Defaults to the current
+                namespace of the app, so it's safe to ignore this parameter most of the time. See the section on
+                `namespaces <APPGUIDE.html#namespaces>`__ for a detailed description.
+            timeout (str | int | float, optional): Timeout for the app thread to wait for a response from the main
+                thread.
+            hass_timeout (str | int | float, optional): Timeout for AppDaemon waiting on a response from Home Assistant
+                to respond to the backup request. Cannot be set lower than the timeout value.
+            callback (ServiceCallback, optional): Function to call with the results of the request.
+            return_response (bool, optional): Whether Home Assistant should return a response to the service call. Even
+                if it's False, Home Assistant will still respond with an acknowledgement. Defaults to True
+
+        Returns:
+            dict: The response from the conversation agent. See the docs on
+            `conversation response <https://developers.home-assistant.io/docs/intent_conversation_api/#conversation-response>`_
+            for more information.
+
+        Examples:
+            Extracting the text of the speech response, continuation flag, and conversation ID:
+
+            >>> full_response = self.process_conversation("Hello world!")
+            >>> match full_response:
+            ...     case {'success': True, 'result': dict(result)}:
+            ...         match result['response']:
+            ...             case {
+            ...                 'response': dict(response),
+            ...                 'continue_conversation': bool(continue_conv),
+            ...                 'conversation_id': str(conv_id),
+            ...             }:
+            ...                 speech: str = response['speech']['plain']['speech']
+            ...                 self.log(speech, ascii_encode=False)
+            ...                 self.log(continue_conv)
+            ...                 self.log(conv_id)
+
+            Extracting entity IDs from a successful action response:
+
+            >>> full_response = self.process_conversation("Turn on the living room lights")
+            >>> match full_response:
+            ...     case {'success': True, 'result': dict(result)}:
+            ...         match result['response']:
+            ...             case {'response': {'data': {'success': list(entities)}}}:
+            ...                 eids = [e['id'] for e in entities]
+            ...                 self.log(eids)
+        """
+        return self.call_service(
+            service='conversation/process',
+            text=text,
+            language=language,
+            agent_id=agent_id,
+            conversation_id=conversation_id,
+            namespace=namespace if namespace is not None else self.namespace,
+            timeout=timeout,
+            callback=callback,
+            hass_timeout=hass_timeout,
+            return_response=return_response,
+        )
+
+    def reload_conversation(
+        self,
+        language: str | None = None,
+        agent_id: str | None = None,
+        *,
+        namespace: str | None = None,
+    ) -> dict[str, Any]:
+        """Reload the intent cache for a conversation agent.
+
+        See the docs on the `conversation integration <https://www.home-assistant.io/integrations/conversation/>`__ for
+        more information.
+
+        Args:
+            language (str, optional): Language to clear intent cache for. No value clears all languages. Defaults to None.
+            agent_id (str, optional): ID of conversation agent. Defaults to the built-in Home Assistant agent.
+            namespace (str, optional): If provided, changes the namespace for the service call. Defaults to the current
+                namespace of the app, so it's safe to ignore this parameter most of the time. See the section on
+                `namespaces <APPGUIDE.html#namespaces>`__ for a detailed description.
+
+        Returns:
+            dict: The acknowledgement response from Home Assistant.
+        """
+        return self.call_service(
+            service='conversation/reload',
+            language=language,
+            agent_id=agent_id,
+            namespace=namespace if namespace is not None else self.namespace,
+        )
