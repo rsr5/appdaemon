@@ -456,11 +456,19 @@ class Hass(ADBase, ADAPI):
         callback: ServiceCallback | None = None,
         hass_timeout: str | int | float | None = None,
         suppress_log_messages: bool = False,
+        return_response: bool | None = None,
         **data,
     ) -> Any: ...
 
     @utils.sync_decorator
-    async def call_service(self, *args, timeout: str | int | float | None = None, **kwargs) -> Any:
+    async def call_service(
+        self,
+        service: str,
+        namespace: str | None = None,
+        timeout: str | int | float | None = None,
+        callback: Callable[[Any], Any] | None = None,
+        **kwargs
+    ) -> Any:
         """Calls a Service within AppDaemon.
 
         Services represent specific actions, and are generally registered by plugins or provided by AppDaemon itself.
@@ -544,7 +552,7 @@ class Hass(ADBase, ADAPI):
         """
         # We just wrap the ADAPI.call_service method here to add some additional arguments and docstrings
         kwargs = utils.remove_literals(kwargs, (None,))
-        return await super().call_service(*args, timeout=timeout, **kwargs)
+        return await super().call_service(service, namespace, timeout=timeout, callback=callback, **kwargs)
 
     def get_service_info(self, service: str) -> dict | None:
         """Get some information about what kind of data the service expects to receive, which is helpful for debugging.

@@ -769,6 +769,10 @@ class HassPlugin(PluginBase):
         # https://developers.home-assistant.io/docs/api/websocket#calling-a-service-action
         req: dict[str, Any] = {"type": "call_service", "domain": domain, "service": service}
 
+        # Set the return_response flag in the request from the service data
+        if "return_response" in data:
+            req["return_response"] = data.pop("return_response")
+
         service_data = data.pop("service_data", {})
         service_data.update(data)
         if service_data:
@@ -783,9 +787,12 @@ class HassPlugin(PluginBase):
             for prop, val in info.items()  # get each of the properties
         }
 
-        # Set the return_response flag if doing so is not optional
         match service_properties:
             case {"response": {"optional": False}}:
+                # Force the return_response flag if doing so is not optional
+                req["return_response"] = True
+            case {"response": {"optional": True}} if "return_response" not in req:
+                # If the response is optional, but not set above, default to returning the response.
                 req["return_response"] = True
 
         if target is None and entity_id is not None:
