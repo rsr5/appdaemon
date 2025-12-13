@@ -738,8 +738,8 @@ class HassPlugin(PluginBase):
             service (str): Name of the service to call
             target (str | dict | None, optional): Target of the service. Defaults to None. If the ``entity_id`` argument
                 is not used, then the value of the ``target`` argument is used directly.
-            entity_id (str | list[str] | None, optional): Entity ID to target with the service call. Seems to be a
-                legacy way . Defaults to None.
+            entity_id (str | list[str] | None, optional): Entity ID to target with the service call. This argument is
+                maintained for legacy compatibility. Defaults to None.
             hass_timeout (str | int | float, optional): Sets the amount of time to wait for a response from Home
                 Assistant. If no value is specified, the default timeout is 10s. The default value can be changed using
                 the ``ws_timeout`` setting the in the Hass plugin configuration in ``appdaemon.yaml``. Even if no data

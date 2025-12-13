@@ -1693,9 +1693,10 @@ class Hass(ADBase, ADAPI):
         """Send a message to a conversation agent for processing with the
         `conversation.process action <https://www.home-assistant.io/integrations/conversation/#action-conversationprocess>`_
         
-        This action is able to return 
+        This action is able to return
         `response data <https://www.home-assistant.io/docs/scripts/perform-actions/#use-templates-to-handle-response-data>`_.
-        The response is the same response as for the `/api/conversation/process API <https://developers.home-assistant.io/docs/intent_conversation_api#conversation-response>`_.
+        The response is the same as the one returned by the `/api/conversation/process` API; see
+        `<https://developers.home-assistant.io/docs/intent_conversation_api#conversation-response>`_ for details.
 
         See the docs on the `conversation integration <https://www.home-assistant.io/integrations/conversation/>`__ for
         more information.
