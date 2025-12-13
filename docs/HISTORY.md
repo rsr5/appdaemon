@@ -8,7 +8,7 @@
 - Add request context logging for failed HASS calls - contributed by [ekutner](https://github.com/ekutner)
 - Reload modified apps on SIGUSR2 - contributed by [chatziko](https://github.com/chatziko)
 - Using urlib to create endpoints from URLs - contributed by [cebtenzzre](https://github.com/cebtenzzre)
-- Added {py:meth}`~appdaemon.plugins.hass.hassapi.Hass.process_conversation` and {py:meth}`~appdaemon.plugins.hass.hassapi.Hass.reload_conversation` to the [Hass API](./HASS_API_REFERENCE.rst#api-usage).
+- Added {py:meth}`~appdaemon.plugins.hass.hassapi.Hass.process_conversation` and {py:meth}`~appdaemon.plugins.hass.hassapi.Hass.reload_conversation` to the {ref}`Hass API <hass-api-usage>`.
 
 **Fixes**
 

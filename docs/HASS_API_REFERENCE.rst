@@ -255,6 +255,9 @@ Example to wait for an input button before starting AppDaemon
         service_data:
           entity_id: input_button.start_appdaemon # example entity
 
+
+.. _hass-api-usage:
+
 API Usage
 ---------
 
