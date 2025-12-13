@@ -723,6 +723,7 @@ class HassPlugin(PluginBase):
         target: str | dict | None = None,
         entity_id: str | list[str] | None = None,  # Maintained for legacy compatibility
         hass_timeout: str | int | float | None = None,
+        return_response: bool | None = None,
         suppress_log_messages: bool = False,
         **data,
     ):
@@ -745,6 +746,10 @@ class HassPlugin(PluginBase):
                 is returned from the service call, Home Assistant will still send an acknowledgement back to AppDaemon,
                 which this timeout applies to. Note that this is separate from the ``timeout``. If ``timeout`` is
                 shorter than this one, it will trigger before this one does.
+            return_response (bool, optional): Indicates whether Home Assistant should return a response to the service
+                call. This is only supported for some services and Home Assistant will return an error if used with a
+                service that doesn't support it. If returning a response is required or optional (based on the service
+                definitions given by Home Assistant), this will automatically be set to ``True``.
             suppress_log_messages (bool, optional): If this is set to ``True``, Appdaemon will suppress logging of
                 warnings for service calls to Home Assistant, specifically timeouts and non OK statuses. Use this flag
                 and set it to ``True`` to suppress these log messages if you are performing your own error checking as
@@ -769,9 +774,8 @@ class HassPlugin(PluginBase):
         # https://developers.home-assistant.io/docs/api/websocket#calling-a-service-action
         req: dict[str, Any] = {"type": "call_service", "domain": domain, "service": service}
 
-        # Set the return_response flag in the request from the service data
-        if "return_response" in data:
-            req["return_response"] = data.pop("return_response")
+        if return_response is not None:
+            req["return_response"] = return_response
 
         service_data = data.pop("service_data", {})
         service_data.update(data)
@@ -792,7 +796,7 @@ class HassPlugin(PluginBase):
                 # Force the return_response flag if doing so is not optional
                 req["return_response"] = True
             case {"response": {"optional": True}} if "return_response" not in req:
-                # If the response is optional, but not set above, default to returning the response.
+                # If the response is optional, but not set above, default to return_response=True.
                 req["return_response"] = True
 
         if target is None and entity_id is not None:

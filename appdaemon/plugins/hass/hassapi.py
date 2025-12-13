@@ -507,6 +507,10 @@ class Hass(ADBase, ADAPI):
                 Appdaemon will suppress logging of warnings for service calls to Home Assistant, specifically timeouts
                 and non OK statuses. Use this flag and set it to ``True`` to suppress these log messages if you are
                 performing your own error checking as described `here <APPGUIDE.html#some-notes-on-service-calls>`__
+            return_response (bool, optional): Indicates whether Home Assistant should return a response to the service
+                call. This is only supported for some services and Home Assistant will return an error if used with a
+                service that doesn't support it. If returning a response is required or optional (based on the service
+                definitions given by Home Assistant), this will automatically be set to ``True``.
             service_data (dict, optional): Used as an additional dictionary to pass arguments into the ``service_data``
                 field of the JSON that goes to Home Assistant. This is useful if you have a dictionary that you want to
                 pass in that has a key like ``target`` which is otherwise used for the ``target`` argument.
@@ -1686,7 +1690,8 @@ class Hass(ADBase, ADAPI):
         callback: ServiceCallback | None = None,
         return_response: bool = True,
     ) -> dict[str, Any]:
-        """Send a message to a conversation agent for processing.
+        """Send a message to a conversation agent for processing with the
+        `conversation.process action <https://www.home-assistant.io/integrations/conversation/#action-conversationprocess>`_
         
         This action is able to return 
         `response data <https://www.home-assistant.io/docs/scripts/perform-actions/#use-templates-to-handle-response-data>`_.
