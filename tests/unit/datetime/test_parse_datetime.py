@@ -329,3 +329,46 @@ def test_exact_sun_event(default_date: date, location: Location, tz: BaseTzInfo)
     assert next_sunset.date() != default_date, "Next sunset should be tomorrow"
     assert next_sunset.date() != default_date, "Next sunset should be tomorrow"
     assert next_sunset.date() != default_date, "Next sunset should be tomorrow"
+
+
+def test_run_at_time_in_past(default_now: datetime, default_date: date, tomorrow_date: date, parser: partial[datetime]) -> None:
+    """Test that run_at schedules for next day when time is in the past.
+
+    This test reproduces the bug reported in issue #2491 where run_at() with a time
+    in the past runs immediately instead of scheduling for the next day.
+
+    The fix is to have run_at() explicitly pass today=False to parse_datetime,
+    which forces times in the past to be scheduled for tomorrow.
+    """
+    from datetime import time
+
+    # Current time is 12:00 (default_now is 12:00:00)
+    # Test with a time object that's 1 hour in the past (11:00)
+    past_time = time(11, 0, 0)
+    # run_at should call parse_datetime with today=False
+    result = parser(past_time, today=False)
+
+    # Since the time is in the past and today=False (behavior for run_at),
+    # it should be scheduled for tomorrow
+    assert result.date() == tomorrow_date, f"Expected {tomorrow_date}, got {result.date()}"
+    assert result.time() == past_time
+
+    # Test with a time string that's in the past
+    result_str = parser("11:00:00", today=False)
+    assert result_str.date() == tomorrow_date, f"Expected {tomorrow_date}, got {result_str.date()}"
+
+    # Test with a time that's in the future (should be today)
+    future_time = time(13, 0, 0)
+    result_future = parser(future_time, today=False)
+    assert result_future.date() == default_date, f"Expected {default_date}, got {result_future.date()}"
+    assert result_future.time() == future_time
+
+    # Test with today=True explicitly (should be today even if in the past)
+    result_today = parser(past_time, today=True)
+    assert result_today.date() == default_date
+    assert result_today.time() == past_time
+
+    # Test with today=None (default for elevation events - should be today even if past)
+    result_none = parser(past_time, today=None)
+    assert result_none.date() == default_date
+    assert result_none.time() == past_time
