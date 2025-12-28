@@ -285,22 +285,34 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 
+def parse_timedelta_or_none(input_: str | int | float | timedelta | None) -> timedelta | None:
+    """Parse to timedelta, but return None if input is None."""
+    return parse_timedelta(input_) if input_ is not None else None
+
+
 def resolve_offset(
-    offset: TimeDeltaLike | None,
-    random_start: int | float | None = None,
-    random_end: int | float | None = None,
+    offset: timedelta,
+    random_start: timedelta | None = None,
+    random_end: timedelta | None = None,
 ) -> timedelta:
-    """Resolves a given offset with some randomization into a timedelta object."""
-    offset = parse_timedelta(offset)
+    """Resolves a given offset with some randomization into a timedelta object.
+
+    Args:
+        offset: Base offset as a timedelta
+        random_start: Start of random range as a timedelta (can be negative)
+        random_end: End of random range as a timedelta
+
+    Returns:
+        The offset plus a random value in [random_start, random_end]
+    """
     if random_start is not None or random_end is not None:
-        random_start = random_start if random_start is not None else 0
-        random_end = random_end if random_end is not None else 0
+        r_start = random_start if random_start is not None else timedelta()
+        r_end = random_end if random_end is not None else timedelta()
 
-        span = random_end - random_start
-        assert span >= 0, "Random end must be greater than or equal to random start"
+        span = r_end - r_start
+        assert span >= timedelta(), "Random end must be greater than or equal to random start"
 
-        random_secs = (span * random.random()) + random_start
-        random_offset = parse_timedelta(random_secs)
+        random_offset = span * random.random() + r_start
         offset += random_offset
     return offset
 

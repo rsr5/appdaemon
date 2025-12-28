@@ -2748,7 +2748,7 @@ class ADAPI:
         return await self.AD.sched.reset_timer(self.name, handle)
 
     @utils.sync_decorator
-    async def info_timer(self, handle: str) -> tuple[dt.datetime, int, dict] | None:
+    async def info_timer(self, handle: str) -> tuple[dt.datetime, float, dict] | None:
         """Get information about a previously created timer.
 
         Args:
@@ -2758,7 +2758,7 @@ class ADAPI:
             A tuple with the following values or ``None`` if handle is invalid or timer no longer exists.
 
             - `time` - datetime object representing the next time the callback will be fired
-            - `interval` - repeat interval if applicable, `0` otherwise.
+            - `interval` - repeat interval in seconds if applicable, `0` otherwise.
             - `kwargs` - the values supplied when the callback was initially created.
 
         Examples:
@@ -2766,7 +2766,10 @@ class ADAPI:
             >>>     time, interval, kwargs = info
 
         """
-        return await self.AD.sched.info_timer(handle, self.name)
+        if (result := await self.AD.sched.info_timer(handle, self.name)) is not None:
+            time, interval, kwargs = result
+            return time, interval.total_seconds(), kwargs
+        return None
 
     @utils.sync_decorator
     async def run_in(
@@ -2774,8 +2777,8 @@ class ADAPI:
         callback: Callable,
         delay: TimeDeltaLike,
         *args,
-        random_start: int | None = None,
-        random_end: int | None = None,
+        random_start: TimeDeltaLike | None = None,
+        random_end: TimeDeltaLike | None = None,
         pin: bool | None = None,
         pin_thread: int | None = None,
         **kwargs,
@@ -2827,8 +2830,8 @@ class ADAPI:
             name=self.name,
             aware_dt=exec_time,
             callback=sched_func,
-            random_start=random_start,
-            random_end=random_end,
+            random_start=utils.parse_timedelta_or_none(random_start),
+            random_end=utils.parse_timedelta_or_none(random_end),
             pin=pin,
             pin_thread=pin_thread,
         )
@@ -2839,8 +2842,8 @@ class ADAPI:
         callback: Callable,
         start: str | dt.time | dt.datetime | None = None,
         *args,
-        random_start: int | None = None,
-        random_end: int | None = None,
+        random_start: TimeDeltaLike | None = None,
+        random_end: TimeDeltaLike | None = None,
         pin: bool | None = None,
         pin_thread: int | None = None,
         **kwargs,
@@ -2909,8 +2912,8 @@ class ADAPI:
         callback: Callable,
         start: str | dt.time | dt.datetime,
         *args,
-        random_start: int | None = None,
-        random_end: int | None = None,
+        random_start: TimeDeltaLike | None = None,
+        random_end: TimeDeltaLike | None = None,
         pin: bool | None = None,
         pin_thread: int | None = None,
         **kwargs,
@@ -2963,6 +2966,9 @@ class ADAPI:
 
         """
         start = "now" if start is None else start
+        random_start_td = utils.parse_timedelta_or_none(random_start)
+        random_end_td = utils.parse_timedelta_or_none(random_end)
+
         match start:
             case str() as start_str if start.startswith("sun"):
                 if start.startswith("sunrise"):
@@ -2983,14 +2989,14 @@ class ADAPI:
                     self.AD.sched.insert_schedule,
                     name=self.name,
                     aware_dt=start,
-                    interval=timedelta(days=1).total_seconds()
+                    interval=timedelta(days=1)
                 )  # fmt: skip
 
         func = functools.partial(
             func,
             callback=functools.partial(callback, *args, **kwargs),
-            random_start=random_start,
-            random_end=random_end,
+            random_start=random_start_td,
+            random_end=random_end_td,
             pin=pin,
             pin_thread=pin_thread,
         )
@@ -3002,8 +3008,8 @@ class ADAPI:
         callback: Callable,
         start: str | dt.time | dt.datetime | None = None,
         *args,
-        random_start: int | None = None,
-        random_end: int | None = None,
+        random_start: TimeDeltaLike | None = None,
+        random_end: TimeDeltaLike | None = None,
         pin: bool | None = None,
         pin_thread: int | None = None,
         **kwargs,
@@ -3095,8 +3101,8 @@ class ADAPI:
         callback: Callable,
         start: str | dt.time | dt.datetime | None = None,
         *args,
-        random_start: int | None = None,
-        random_end: int | None = None,
+        random_start: TimeDeltaLike | None = None,
+        random_end: TimeDeltaLike | None = None,
         pin: bool | None = None,
         pin_thread: int | None = None,
         **kwargs,
@@ -3156,8 +3162,8 @@ class ADAPI:
         callback: Callable,
         start: str | dt.time | dt.datetime | None = None,
         *args,
-        random_start: int | None = None,
-        random_end: int | None = None,
+        random_start: TimeDeltaLike | None = None,
+        random_end: TimeDeltaLike | None = None,
         pin: bool | None = None,
         pin_thread: int | None = None,
         **kwargs,
@@ -3219,8 +3225,8 @@ class ADAPI:
         start: str | dt.time | dt.datetime | None = None,
         interval: TimeDeltaLike = 0,
         *args,
-        random_start: int | None = None,
-        random_end: int | None = None,
+        random_start: TimeDeltaLike | None = None,
+        random_end: TimeDeltaLike | None = None,
         pin: bool | None = None,
         pin_thread: int | None = None,
         **kwargs,
@@ -3318,9 +3324,9 @@ class ADAPI:
             aware_dt=next_period,
             callback=functools.partial(callback, *args, **kwargs),
             repeat=True,
-            interval=interval.total_seconds(),
-            random_start=random_start,
-            random_end=random_end,
+            interval=interval,
+            random_start=utils.parse_timedelta_or_none(random_start),
+            random_end=utils.parse_timedelta_or_none(random_end),
             pin=pin,
             pin_thread=pin_thread,
         )
@@ -3332,8 +3338,8 @@ class ADAPI:
         *args,
         repeat: bool = True,
         offset: TimeDeltaLike | None = None,
-        random_start: int | None = None,
-        random_end: int | None = None,
+        random_start: TimeDeltaLike | None = None,
+        random_end: TimeDeltaLike | None = None,
         pin: bool | None = None,
         pin_thread: int | None = None,
         **kwargs,
@@ -3384,20 +3390,20 @@ class ADAPI:
         """
         now = await self.AD.sched.get_now()
         sunset = await self.AD.sched.todays_sunset()
-        td = utils.parse_timedelta(offset)
-        if sunset + td < now:
+        offset_td = utils.parse_timedelta(offset)
+        if sunset + offset_td < now:
             sunset = await self.AD.sched.next_sunset()
 
-        self.logger.debug(f"Registering run_at_sunset at {sunset + td} with {args}, {kwargs}")
+        self.logger.debug(f"Registering run_at_sunset at {sunset + offset_td} with {args}, {kwargs}")
         return await self.AD.sched.insert_schedule(
             name=self.name,
             aware_dt=sunset,
             callback=functools.partial(callback, *args, **kwargs),
             repeat=repeat,
             type_="next_setting",
-            offset=offset,
-            random_start=random_start,
-            random_end=random_end,
+            offset=offset_td,
+            random_start=utils.parse_timedelta_or_none(random_start),
+            random_end=utils.parse_timedelta_or_none(random_end),
             pin=pin,
             pin_thread=pin_thread,
         )
@@ -3409,8 +3415,8 @@ class ADAPI:
         *args,
         repeat: bool = True,
         offset: TimeDeltaLike | None = None,
-        random_start: int | None = None,
-        random_end: int | None = None,
+        random_start: TimeDeltaLike | None = None,
+        random_end: TimeDeltaLike | None = None,
         pin: bool | None = None,
         pin_thread: int | None = None,
         **kwargs,
@@ -3461,19 +3467,19 @@ class ADAPI:
         """
         now = await self.AD.sched.get_now()
         sunrise = await self.AD.sched.todays_sunrise()
-        td = utils.parse_timedelta(offset)
-        if sunrise + td < now:
+        offset_td = utils.parse_timedelta(offset)
+        if sunrise + offset_td < now:
             sunrise = await self.AD.sched.next_sunrise()
-        self.logger.debug(f"Registering run_at_sunrise at {sunrise + td} with {args}, {kwargs}")
+        self.logger.debug(f"Registering run_at_sunrise at {sunrise + offset_td} with {args}, {kwargs}")
         return await self.AD.sched.insert_schedule(
             name=self.name,
             aware_dt=sunrise,
             callback=functools.partial(callback, *args, **kwargs),
             repeat=repeat,
             type_="next_rising",
-            offset=offset,
-            random_start=random_start,
-            random_end=random_end,
+            offset=offset_td,
+            random_start=utils.parse_timedelta_or_none(random_start),
+            random_end=utils.parse_timedelta_or_none(random_end),
             pin=pin,
             pin_thread=pin_thread,
         )

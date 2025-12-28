@@ -153,10 +153,10 @@ class Scheduler:
         callback: Callable | None,
         repeat: bool = False,
         type_: str | None = None,
-        interval: TimeDeltaLike = 0,
-        offset: TimeDeltaLike | None = None,
-        random_start: int | None = None,
-        random_end: int | None = None,
+        interval: timedelta = timedelta(),
+        offset: timedelta = timedelta(),
+        random_start: timedelta | None = None,
+        random_end: timedelta | None = None,
         pin: bool | None = None,
         pin_thread: int | None = None,
         **kwargs,
@@ -187,25 +187,20 @@ class Scheduler:
         handle = uuid.uuid4().hex
 
         # Resolve the first run
-        offset = utils.parse_timedelta(offset)
         c_offset = utils.resolve_offset(offset=offset, random_start=random_start, random_end=random_end)
         timestamp = basetime + c_offset
-
-        # Preserve randomization kwargs because this is where they're looked for later
-        if random_start is not None:
-            kwargs["random_start"] = random_start
-        if random_end is not None:
-            kwargs["random_end"] = random_end
 
         self.schedule[name][handle] = {
             "name": name,
             "id": self.AD.app_management.objects[name].id,
             "callback": callback,
             "timestamp": timestamp,
-            "interval": utils.parse_timedelta(interval).total_seconds(),  # guarantees that interval is a float
+            "interval": interval,
             "basetime": basetime,
             "repeat": repeat,
-            "offset": offset.total_seconds(),
+            "offset": offset,
+            "random_start": random_start,
+            "random_end": random_end,
             "type": type_,
             "pin_app": pin_app,
             "pin_thread": pin_thread,
@@ -265,7 +260,7 @@ class Scheduler:
             case {"type": "next_rising" | "next_setting", "offset": offset}:
                 # If the offset is negative, the next sunrise/sunset will still be today, so get tomorrow's by setting
                 # the days_offset to 1.
-                days_offset = 1 if offset < 0 else 0
+                days_offset = 1 if offset < timedelta() else 0
                 match args:
                     case {"type": "next_rising"}:
                         args["basetime"] = await self.next_sunrise(days_offset)
@@ -273,7 +268,7 @@ class Scheduler:
                         args["basetime"] = await self.next_sunset(days_offset)
             case {"interval": interval}:
                 # Just increment the basetime with the repeat interval
-                args["basetime"] += utils.parse_timedelta(interval)
+                args["basetime"] += interval
             case _:
                 raise ValueError("Malformed scheduler args, expected 'type' or 'interval' key")
 
@@ -342,13 +337,13 @@ class Scheduler:
                 "callback": callback,
                 "timestamp": datetime() as timestamp,
                 "basetime": datetime() as basetime,
-                "interval": (int() | float()) as interval,
+                "interval": timedelta() as interval,
             }:
                 callback_name = utils.unwrapped(callback).__name__
                 logger.debug(f"callback name={callback_name}")
                 logger.debug(f"     basetime={basetime.astimezone(self.AD.tz).isoformat()}")
                 logger.debug(f"    timestamp={timestamp.astimezone(self.AD.tz).isoformat()}")
-                logger.debug(f"     interval={utils.parse_timedelta(interval)}")
+                logger.debug(f"     interval={interval}")
                 pass
             case _:
                 logger.debug("  Executing: %s", args)
@@ -718,7 +713,7 @@ class Scheduler:
     async def sun_down(self) -> bool:
         return await self.now_is_between(start_time="sunset", end_time="sunrise")
 
-    async def info_timer(self, handle, name) -> tuple[datetime, float, dict] | None:
+    async def info_timer(self, handle, name) -> tuple[datetime, timedelta, dict] | None:
         if self.timer_running(name, handle):
             callback = self.schedule[name][handle]
             return (
