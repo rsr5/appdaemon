@@ -317,6 +317,54 @@ def resolve_offset(
     return offset
 
 
+# Maximum allowed offset for sun events (sunrise/sunset repeat daily)
+SUN_EVENT_INTERVAL = timedelta(days=1)
+
+
+def validate_offset_within_interval(
+    offset: timedelta,
+    interval: timedelta,
+    event_type: str,
+    random_start: timedelta | None = None,
+    random_end: timedelta | None = None,
+) -> None:
+    """Validate that the offset (including random range) doesn't exceed the event interval.
+
+    For repeating schedules, an offset that exceeds the interval between events would cause
+    confusing behavior where the callback fires at unpredictable times relative to the intended
+    base time.
+
+    Args:
+        offset: The base offset as a timedelta
+        interval: The interval between events as a timedelta
+        event_type: Human-readable description of the event type (e.g., "sunrise", "daily")
+        random_start: Optional random range start as a timedelta
+        random_end: Optional random range end as a timedelta
+
+    Raises:
+        OffsetExceedsIntervalError: If the maximum possible offset exceeds the interval
+    """
+    if interval <= timedelta():
+        return  # Non-repeating event or invalid interval, skip validation
+
+    r_start = random_start if random_start is not None else timedelta()
+    r_end = random_end if random_end is not None else timedelta()
+
+    # Calculate the extreme possible offsets
+    min_offset = offset + r_start
+    max_offset = offset + r_end
+
+    # Check if any possible offset would exceed the interval
+    if abs(min_offset) >= interval or abs(max_offset) >= interval:
+        raise ade.OffsetExceedsIntervalError(
+            offset=offset,
+            interval=interval,
+            event_type=event_type,
+            random_start=random_start,
+            random_end=random_end,
+        )
+
+
 def sync_decorator(coro_func: Callable[P, Awaitable[R]]) -> Callable[P, R]:
     """Wrap a coroutine function to ensure it gets run in the main thread.
 

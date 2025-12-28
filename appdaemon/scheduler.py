@@ -187,6 +187,23 @@ class Scheduler:
         handle = uuid.uuid4().hex
 
         # Resolve the first run
+
+        # Validate offset doesn't exceed the interval for repeating schedules
+        if repeat:
+            match type_:
+                case "next_rising":
+                    utils.validate_offset_within_interval(
+                        offset, utils.SUN_EVENT_INTERVAL, "sunrise", random_start, random_end
+                    )
+                case "next_setting":
+                    utils.validate_offset_within_interval(
+                        offset, utils.SUN_EVENT_INTERVAL, "sunset", random_start, random_end
+                    )
+                case _ if interval.total_seconds() > 0:
+                    utils.validate_offset_within_interval(
+                        offset, interval, "interval", random_start, random_end
+                    )
+
         c_offset = utils.resolve_offset(offset=offset, random_start=random_start, random_end=random_end)
         timestamp = basetime + c_offset
 

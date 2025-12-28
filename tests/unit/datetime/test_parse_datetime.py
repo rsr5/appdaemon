@@ -6,7 +6,9 @@ from typing import Literal
 import appdaemon.parse
 import pytest
 import pytz
+from appdaemon.exceptions import OffsetExceedsIntervalError
 from appdaemon.parse import resolve_time_str
+from appdaemon.utils import SUN_EVENT_INTERVAL, validate_offset_within_interval
 from astral import SunDirection
 from astral.location import Location
 from pytz import BaseTzInfo
@@ -372,3 +374,57 @@ def test_run_at_time_in_past(default_now: datetime, default_date: date, tomorrow
     result_none = parser(past_time, today=None)
     assert result_none.date() == default_date
     assert result_none.time() == past_time
+
+
+class TestOffsetValidation:
+    """Tests for validate_offset_within_interval"""
+
+    def test_valid_offset_within_interval(self) -> None:
+        """Offset smaller than interval should pass"""
+        # 1 hour offset with 24 hour interval - should not raise
+        offset = timedelta(hours=1)
+        validate_offset_within_interval(offset, timedelta(days=1), "daily")
+
+    def test_valid_offset_with_random_within_interval(self) -> None:
+        """Offset + random range smaller than interval should pass"""
+        # 1 hour offset with random range of -30min to +30min
+        # Max possible offset = 1h + 30m = 1.5h, which is < 1 day
+        offset = timedelta(hours=1)
+        validate_offset_within_interval(
+            offset, SUN_EVENT_INTERVAL, "sunset",
+            random_start=timedelta(minutes=-30), random_end=timedelta(minutes=30)
+        )
+
+    def test_offset_exceeds_interval_raises(self) -> None:
+        """Offset larger than interval should raise"""
+        # 25 hour offset with 1 day sun event interval - should raise
+        offset = timedelta(hours=25)
+        with pytest.raises(OffsetExceedsIntervalError) as exc_info:
+            validate_offset_within_interval(offset, SUN_EVENT_INTERVAL, "sunrise")
+
+        assert exc_info.value.offset == timedelta(hours=25)
+        assert exc_info.value.interval == SUN_EVENT_INTERVAL
+        assert exc_info.value.event_type == "sunrise"
+
+    def test_random_end_exceeds_interval_raises(self) -> None:
+        """Random end that would push total offset past interval should raise"""
+        # 23 hour offset + random range up to 2 hours = 25 hours max, exceeds 1 day
+        offset = timedelta(hours=23)
+        with pytest.raises(OffsetExceedsIntervalError):
+            validate_offset_within_interval(
+                offset, SUN_EVENT_INTERVAL, "sunset",
+                random_start=timedelta(), random_end=timedelta(hours=2)
+            )
+
+    def test_negative_offset_exceeds_interval_raises(self) -> None:
+        """Negative offset larger than interval should raise"""
+        # -25 hour offset with 24 hour daily interval - should raise
+        offset = timedelta(hours=-25)
+        with pytest.raises(OffsetExceedsIntervalError):
+            validate_offset_within_interval(offset, timedelta(days=1), "daily")
+
+    def test_zero_interval_skips_validation(self) -> None:
+        """Zero interval (non-repeating) should skip validation"""
+        # Even a huge offset should pass with zero interval
+        offset = timedelta(days=365)
+        validate_offset_within_interval(offset, timedelta(), "one-time")
