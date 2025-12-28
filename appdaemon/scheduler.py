@@ -16,6 +16,7 @@ from astral import LocationInfo
 from astral.location import Location
 
 from . import parse, utils
+from .types import TimeDeltaLike
 
 if TYPE_CHECKING:
     from .adbase import ADBase
@@ -152,8 +153,8 @@ class Scheduler:
         callback: Callable | None,
         repeat: bool = False,
         type_: str | None = None,
-        interval: str | int | float | timedelta = 0,
-        offset: str | int | float | timedelta | None = None,
+        interval: TimeDeltaLike = 0,
+        offset: TimeDeltaLike | None = None,
         random_start: int | None = None,
         random_end: int | None = None,
         pin: bool | None = None,
@@ -465,9 +466,9 @@ class Scheduler:
 
     async def get_next_period(
         self,
-        interval: int | float | timedelta,
+        interval: TimeDeltaLike,
         start: time | datetime | str | None = None,
-        buffer: str | float | int | timedelta = 0.01,
+        buffer: TimeDeltaLike = 0.01,
     ) -> datetime:
         interval = utils.parse_timedelta(interval)
         start = "now" if start is None else start

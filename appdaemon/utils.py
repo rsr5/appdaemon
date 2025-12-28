@@ -41,6 +41,7 @@ from appdaemon.version import (
 
 from . import exceptions as ade
 from .parse import parse_timedelta
+from .types import TimeDeltaLike
 
 logger = logging.getLogger("AppDaemon._utility")
 file_log = logger.getChild("file")
@@ -285,7 +286,7 @@ R = TypeVar("R")
 
 
 def resolve_offset(
-    offset: str | int | float | timedelta | None,
+    offset: TimeDeltaLike | None,
     random_start: int | float | None = None,
     random_end: int | float | None = None,
 ) -> timedelta:
@@ -318,7 +319,7 @@ def sync_decorator(coro_func: Callable[P, Awaitable[R]]) -> Callable[P, R]:
     """
 
     @wraps(coro_func)
-    def wrapper(self, *args, timeout: str | int | float | timedelta | None = None, **kwargs) -> R:
+    def wrapper(self, *args, timeout: TimeDeltaLike | None = None, **kwargs) -> R:
         ad: "AppDaemon" = self.AD
 
         # Checks to see if it's being called from the main thread, which has the event loop in it
@@ -374,11 +375,11 @@ def _profile_this(fn):
     return profiled_fn
 
 
-def format_seconds(secs: str | int | float | timedelta) -> str:
+def format_seconds(secs: TimeDeltaLike) -> str:
     return str(parse_timedelta(secs))
 
 
-def format_timedelta(td: str | int | float | timedelta | None) -> str:
+def format_timedelta(td: TimeDeltaLike | None) -> str:
     """Format a timedelta object into a human-readable string.
 
     There are different brackets for lengths of time that will format the strings differently.
@@ -637,7 +638,7 @@ async def run_in_executor(self: Subsystem, fn: Callable[..., R], *args, **kwargs
     return await future
 
 
-def run_coroutine_threadsafe(self: "ADBase", coro: Coroutine[Any, Any, R], timeout: str | int | float | timedelta | None = None) -> R:
+def run_coroutine_threadsafe(self: "ADBase", coro: Coroutine[Any, Any, R], timeout: TimeDeltaLike | None = None) -> R:
     """Run an instantiated coroutine (async) from sync code.
 
     This wraps the native python function ``asyncio.run_coroutine_threadsafe`` with logic to add a timeout. See

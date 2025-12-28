@@ -24,6 +24,7 @@ from appdaemon.logging import Logging
 from appdaemon.models.config.app import AppConfig
 from appdaemon.parse import resolve_time_str
 from appdaemon.state import StateCallbackType
+from .types import TimeDeltaLike
 
 T = TypeVar("T")
 
@@ -1413,9 +1414,9 @@ class ADAPI:
         namespace: str | None = None,
         new: str | Callable[[Any], bool] | None = None,
         old: str | Callable[[Any], bool] | None = None,
-        duration: str | int | float | timedelta | None = None,
+        duration: TimeDeltaLike | None = None,
         attribute: str | None = None,
-        timeout: str | int | float | timedelta | None = None,
+        timeout: TimeDeltaLike | None = None,
         immediate: bool = False,
         oneshot: bool = False,
         pin: bool | None = None,
@@ -1432,9 +1433,9 @@ class ADAPI:
         namespace: str | None = None,
         new: str | Callable[[Any], bool] | None = None,
         old: str | Callable[[Any], bool] | None = None,
-        duration: str | int | float | timedelta | None = None,
+        duration: TimeDeltaLike | None = None,
         attribute: str | None = None,
-        timeout: str | int | float | timedelta | None = None,
+        timeout: TimeDeltaLike | None = None,
         immediate: bool = False,
         oneshot: bool = False,
         pin: bool | None = None,
@@ -1450,9 +1451,9 @@ class ADAPI:
         namespace: str | None = None,
         new: str | Callable[[Any], bool] | None = None,
         old: str | Callable[[Any], bool] | None = None,
-        duration: str | int | float | timedelta | None = None,
+        duration: TimeDeltaLike | None = None,
         attribute: str | None = None,
-        timeout: str | int | float | timedelta | None = None,
+        timeout: TimeDeltaLike | None = None,
         immediate: bool = False,
         oneshot: bool = False,
         pin: bool | None = None,
@@ -1486,7 +1487,7 @@ class ADAPI:
                 careful when comparing them. The ``self.get_state()`` method is useful for checking the data type of
                 the desired attribute. If ``old`` is a callable (lambda, function, etc), then it will be called with
                 the old state, and the callback will only be invoked if the callable returns ``True``.
-            duration (str | int | float | timedelta, optional): If supplied, the callback will not be invoked unless the
+            duration (TimeDeltaLike, optional): If supplied, the callback will not be invoked unless the
                 desired state is maintained for that amount of time. This requires that a specific attribute is
                 specified (or the default of ``state`` is used), and should be used in conjunction with either or both
                 of the ``new`` and ``old`` parameters. When the callback is called, it is supplied with the values of
@@ -1500,7 +1501,7 @@ class ADAPI:
                 the default behavior is to use the value of ``state``. Using the value ``all`` will cause the callback
                 to get triggered for any change in state, and the new/old values used for the callback will be the
                 entire state dict rather than the individual value of an attribute.
-            timeout (str | int | float | timedelta, optional): If given, the callback will be automatically removed
+            timeout (TimeDeltaLike, optional): If given, the callback will be automatically removed
                 after that amount of time. If activity for the listened state has occurred that would trigger a
                 duration timer, the duration timer will still be fired even though the callback has been removed.
             immediate (bool, optional): If given, it enables the countdown for a delay parameter to start at the time.
@@ -2102,7 +2103,7 @@ class ADAPI:
         event: str | None = None,
         *,
         namespace: str | None = None,
-        timeout: str | int | float | timedelta | None = None,
+        timeout: TimeDeltaLike | None = None,
         oneshot: bool = False,
         pin: bool | None = None,
         pin_thread: int | None = None,
@@ -2117,7 +2118,7 @@ class ADAPI:
         event: list[str],
         *,
         namespace: str | None = None,
-        timeout: str | int | float | timedelta | None = None,
+        timeout: TimeDeltaLike | None = None,
         oneshot: bool = False,
         pin: bool | None = None,
         pin_thread: int | None = None,
@@ -2131,7 +2132,7 @@ class ADAPI:
         event: str | Iterable[str] | None = None,
         *,  # Arguments after this are keyword only
         namespace: str | Literal["global"] | None = None,
-        timeout: str | int | float | timedelta | None = None,
+        timeout: TimeDeltaLike | None = None,
         oneshot: bool = False,
         pin: bool | None = None,
         pin_thread: int | None = None,
@@ -2294,7 +2295,7 @@ class ADAPI:
         self,
         event: str,
         namespace: str | None = None,
-        timeout: str | int | float | timedelta | None = -1,  # Used by utils.sync_decorator
+        timeout: TimeDeltaLike | None = -1,  # Used by utils.sync_decorator
         **kwargs,
     ) -> None:
         """Fires an event on the AppDaemon bus, for apps and plugins.
@@ -2771,7 +2772,7 @@ class ADAPI:
     async def run_in(
         self,
         callback: Callable,
-        delay: str | int | float | timedelta,
+        delay: TimeDeltaLike,
         *args,
         random_start: int | None = None,
         random_end: int | None = None,
@@ -3216,7 +3217,7 @@ class ADAPI:
         self,
         callback: Callable,
         start: str | dt.time | dt.datetime | None = None,
-        interval: str | int | float | timedelta = 0,
+        interval: TimeDeltaLike = 0,
         *args,
         random_start: int | None = None,
         random_end: int | None = None,
@@ -3330,7 +3331,7 @@ class ADAPI:
         callback: Callable,
         *args,
         repeat: bool = True,
-        offset: str | int | float | timedelta | None = None,
+        offset: TimeDeltaLike | None = None,
         random_start: int | None = None,
         random_end: int | None = None,
         pin: bool | None = None,
@@ -3407,7 +3408,7 @@ class ADAPI:
         callback: Callable,
         *args,
         repeat: bool = True,
-        offset: str | int | float | timedelta | None = None,
+        offset: TimeDeltaLike | None = None,
         random_start: int | None = None,
         random_end: int | None = None,
         pin: bool | None = None,
@@ -3484,7 +3485,7 @@ class ADAPI:
     def dash_navigate(
         self,
         target: str,
-        timeout: str | int | float | timedelta | None = -1,  # Used by utils.sync_decorator
+        timeout: TimeDeltaLike | None = -1,  # Used by utils.sync_decorator
         ret: str | None = None,
         sticky: int = 0,
         deviceid: str | None = None,

@@ -9,7 +9,7 @@ import ssl
 from collections.abc import AsyncGenerator, Callable, Coroutine, Iterable
 from copy import deepcopy
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from time import perf_counter
 from typing import Any, Literal, Optional
 
@@ -21,6 +21,7 @@ import appdaemon.utils as utils
 from appdaemon.appdaemon import AppDaemon
 from appdaemon.models.config.plugin import HASSConfig, StartupConditions
 from appdaemon.plugin_management import PluginBase
+from appdaemon.types import TimeDeltaLike
 
 from .exceptions import HAEventsSubError, HassConnectionError
 from .utils import ServiceCallStatus, hass_check
@@ -352,7 +353,7 @@ class HassPlugin(PluginBase):
     @utils.warning_decorator(error_text="Unexpected error during websocket send")
     async def websocket_send_json(
         self,
-        timeout: str | int | float | timedelta | None = None,
+        timeout: TimeDeltaLike | None = None,
         *,  # Arguments after this are keyword-only
         silent: bool = False,
         **request: Any,
@@ -363,7 +364,7 @@ class HassPlugin(PluginBase):
         The `id` parameter is handled automatically and is used to match the response to the request.
 
         Args:
-            timeout (str | int | float | timedelta, optional): Length of time to wait for a response from Home
+            timeout (TimeDeltaLike, optional): Length of time to wait for a response from Home
                 Assistant with a matching `id`. Defaults to the value of the `ws_timeout` setting in the plugin config.
             silent (bool, optional): If set to `True`, the method will not log the request or response. Defaults to
                 `False`.
@@ -440,7 +441,7 @@ class HassPlugin(PluginBase):
         self,
         method: Literal["get", "post", "delete"],
         endpoint: str,
-        timeout: str | int | float | timedelta | None = 10,
+        timeout: TimeDeltaLike | None = 10,
         **kwargs: Any,
     ) -> str | dict[str, Any] | list[Any] | aiohttp.ClientResponseError | None:
         """Wrapper for making HTTP requests to Home Assistant's
@@ -449,7 +450,7 @@ class HassPlugin(PluginBase):
         Args:
             method (Literal['get', 'post', 'delete']): HTTP method to use.
             endpoint (str): Home Assistant REST endpoint to use. For example '/api/states'
-            timeout (float, optional): Timeout for the method in seconds. Defaults to 10s.
+            timeout (TimeDeltaLike, optional): Timeout for the method in seconds. Defaults to 10s.
             **kwargs (optional): Zero or more keyword arguments. These get used as the data for the method, as
                 appropriate.
         """
@@ -819,7 +820,7 @@ class HassPlugin(PluginBase):
         self,
         event: str,
         namespace: str,
-        timeout: str | int | float | timedelta | None = None,
+        timeout: TimeDeltaLike | None = None,
         **kwargs: Any,
     ) -> dict[str, Any] | None:  # fmt: skip
         # if we get a request for not our namespace something has gone very wrong
@@ -903,7 +904,7 @@ class HassPlugin(PluginBase):
     async def get_plugin_state(
         self,
         entity_id: str,
-        timeout: str | int | float | timedelta | None = 5,
+        timeout: TimeDeltaLike | None = 5,
     ) -> dict | None:
         resp = await self.http_method("get", f"/api/states/{entity_id}", timeout)
         match resp:
@@ -918,7 +919,7 @@ class HassPlugin(PluginBase):
     async def check_for_entity(
         self,
         entity_id: str,
-        timeout: str | int | float | timedelta | None = 5,
+        timeout: TimeDeltaLike | None = 5,
         *,  # Arguments after this are keyword-only
         local: bool = False,
     ) -> dict | Literal[False]:
