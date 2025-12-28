@@ -274,10 +274,13 @@ class Scheduler:
     async def restart_timer(self, uuid_: str, args: dict[str, Any]) -> dict:
         """Used to restart a timer. This directly modifies the internal schedule dict."""
         match args:
-            case {"type": "next_rising" | "next_setting", "offset": offset}:
-                # If the offset is negative, the next sunrise/sunset will still be today, so get tomorrow's by setting
-                # the days_offset to 1.
-                days_offset = 1 if offset < timedelta() else 0
+            case {"type": "next_rising" | "next_setting", "timestamp": timestamp, "basetime": basetime}:
+                # Determine if we need to skip ahead a day based on the effective offset
+                # (including any random component) that was actually used for this firing.
+                # If negative, the callback fired before the sun event, so next_*() returns
+                # that same event and we need to skip ahead.
+                effective_offset = timestamp - basetime
+                days_offset = 1 if effective_offset < timedelta() else 0
                 match args:
                     case {"type": "next_rising"}:
                         args["basetime"] = await self.next_sunrise(days_offset)
