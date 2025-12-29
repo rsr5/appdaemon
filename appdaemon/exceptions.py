@@ -105,11 +105,14 @@ def user_exception_block(logger: Logger, exception: Exception, app_dir: Path | N
                 logger.error(f"{indent}{exc.__class__.__name__}: {exc}")
                 if tb := traceback.extract_tb(exc.__traceback__):
                     frame = tb[-1]
-                    file = Path(frame.filename).relative_to(app_dir.parent)
-                    logger.error(f"{indent}  line {frame.lineno} in {file.name}")
-                    logger.error(f"{indent}  {frame._line.rstrip()}")
-                    error_len = frame.end_colno - frame.colno
-                    logger.error(f"{indent}  {' ' * (frame.colno - 1)}{'^' * error_len}")
+                    file_path = Path(frame.filename)
+                    # Only show file details if it's in the user's app directory
+                    if file_path.is_relative_to(app_dir.parent):
+                        file = file_path.relative_to(app_dir.parent)
+                        logger.error(f"{indent}  line {frame.lineno} in {file.name}")
+                        logger.error(f"{indent}  {frame._line.rstrip()}")
+                        error_len = frame.end_colno - frame.colno
+                        logger.error(f"{indent}  {' ' * (frame.colno - 1)}{'^' * error_len}")
             case SyntaxError():
                 logger.error(f"{indent}{exc.__class__.__name__}: {exc}")
                 logger.error(f"{indent}  {exc.text.rstrip()}")
