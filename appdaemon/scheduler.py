@@ -483,18 +483,20 @@ class Scheduler:
         self,
         interval: TimeDeltaLike,
         start: time | datetime | str | None = None,
-        buffer: TimeDeltaLike = 0.01,
     ) -> datetime:
         interval = utils.parse_timedelta(interval)
         start = "now" if start is None else start
-        aware_start = await self.parse_datetime(start, aware=True)
+
+        # Get "now" once and use it consistently to avoid timing races
+        now = await self.get_now()
+        aware_start = await self.parse_datetime(start, aware=True, now=now)
         assert isinstance(aware_start, datetime) and aware_start.tzinfo is not None
-        buffer = utils.parse_timedelta(buffer)
-        while True:
-            if aware_start >= (await self.get_now() - buffer):
-                return aware_start
-            else:
-                aware_start += interval
+
+        # Skip forward to the next period if start is in the past
+        while aware_start < now:
+            aware_start += interval
+
+        return aware_start
 
     async def terminate_app(self, name: str):
         if app_sched := self.schedule.pop(name, False):
@@ -877,7 +879,9 @@ class Scheduler:
         input_: str | time | datetime,
         aware: bool = False,
         today: bool | None = None,
-        days_offset: int = 0
+        days_offset: int = 0,
+        *,
+        now: datetime | None = None,
     ) -> datetime:  # fmt: skip
         """Parse a variety of inputs into a datetime object.
 
@@ -892,9 +896,12 @@ class Scheduler:
                 of the next one.
             days_offset (int, optional): Number of days to offset from the current date for sunrise/sunset parsing. If
                 this is negative, this will unset the `today` argument, which allows the result to be in the past.
+            now (datetime, optional): The current time to use as reference. If not provided, will call get_now().
         """
         # Need to force timezone during time-travel mode
-        now = (await self.get_now()).astimezone(self.AD.tz)
+        if now is None:
+            now = await self.get_now()
+        now = now.astimezone(self.AD.tz)
         return parse.parse_datetime(
             input_=input_,
             now=now,
