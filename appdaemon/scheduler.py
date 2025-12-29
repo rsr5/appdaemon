@@ -172,6 +172,8 @@ class Scheduler:
             # Otherwise, use the current pin_app setting in app management
             if pin is None:
                 pin_app = self.AD.app_management.objects[name].pin_app
+            else:
+                pin_app = pin
 
             if pin_thread is None:
                 pin_thread = self.AD.app_management.objects[name].pin_thread
