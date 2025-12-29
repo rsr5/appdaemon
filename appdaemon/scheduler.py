@@ -757,7 +757,7 @@ class Scheduler:
                     schedule[name][str(entry)]["callback"] = self.schedule[name][entry]["callback"].func.__name__
                 else:
                     schedule[name][str(entry)]["callback"] = self.schedule[name][entry]["callback"].__name__
-                schedule[name][str(entry)]["pin_thread"] = self.schedule[name][entry]["pin_thread"] if self.schedule[name][entry]["pin_thread"] != -1 else "None"
+                schedule[name][str(entry)]["pin_thread"] = self.schedule[name][entry]["pin_thread"] if self.schedule[name][entry]["pin_thread"] is not None else "None"
                 schedule[name][str(entry)]["pin_app"] = "True" if self.schedule[name][entry]["pin_app"] is True else "False"
 
         # Order it
