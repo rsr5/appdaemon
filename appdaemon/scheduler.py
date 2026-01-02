@@ -966,4 +966,11 @@ class Scheduler:
         return result
 
     def make_naive(self, dt: datetime) -> datetime:
-        return dt.replace(tzinfo=None)
+        """Convert a timezone-aware datetime to a naive datetime in local timezone.
+
+        This is used for display purposes only. The scheduler internally works
+        with timezone-aware UTC datetimes.
+        """
+        # Convert from UTC to local timezone, then strip timezone info
+        local_dt = dt.astimezone(self.AD.tz)
+        return local_dt.replace(tzinfo=None)
