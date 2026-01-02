@@ -51,7 +51,7 @@ async def ad(ad_obj: AppDaemon, running_loop: asyncio.BaseEventLoop) -> AsyncGen
     # logger.info(f"Passed loop: {hex(id(running_loop))}")
     assert running_loop == asyncio.get_running_loop(), "The running loop should match the one passed in"
     ad = ad_obj
-    config_files = list(recursive_get_files(base=ad.app_dir, suffix=ad.config.ext))
+    config_files = list(recursive_get_files(base=ad.app_dir, suffix={'.yaml', '.toml'}))
     ad.app_management.dependency_manager = DependencyManager(python_files=list(), config_files=config_files)
 
     for cfg in ad.app_management.app_config.root.values():

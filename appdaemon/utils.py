@@ -1217,7 +1217,7 @@ def deprecation_warnings(model: BaseModel, logger: Logger):
                 deprecation_warnings(attr, logger)
 
 
-def recursive_get_files(base: Path, suffix: str, exclude: set[str] | None = None) -> Generator[Path, None, None]:
+def recursive_get_files(base: Path, suffix: str | set[str], exclude: set[str] | None = None) -> Generator[Path, None, None]:
     """Recursively generate file paths.
 
     Args:
@@ -1228,11 +1228,12 @@ def recursive_get_files(base: Path, suffix: str, exclude: set[str] | None = None
     Yields:
         Path objects to files that have the matching extension and are readable.
     """
+    suffix = {suffix} if isinstance(suffix, str) else suffix
     exclude = set() if exclude is None else exclude
     for item in base.iterdir():
         if item.name.startswith(".") or (exclude is None or item.name in exclude):
             continue
-        elif item.is_file() and item.suffix == suffix and os.access(item, os.R_OK):
+        elif item.is_file() and item.suffix in suffix and os.access(item, os.R_OK):
             yield item
         elif item.is_dir() and os.access(item, os.R_OK):
             yield from recursive_get_files(item, suffix, exclude)

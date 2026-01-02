@@ -172,6 +172,8 @@ class Scheduler:
             # Otherwise, use the current pin_app setting in app management
             if pin is None:
                 pin_app = self.AD.app_management.objects[name].pin_app
+            else:
+                pin_app = pin
 
             if pin_thread is None:
                 pin_thread = self.AD.app_management.objects[name].pin_thread
@@ -757,7 +759,7 @@ class Scheduler:
                     schedule[name][str(entry)]["callback"] = self.schedule[name][entry]["callback"].func.__name__
                 else:
                     schedule[name][str(entry)]["callback"] = self.schedule[name][entry]["callback"].__name__
-                schedule[name][str(entry)]["pin_thread"] = self.schedule[name][entry]["pin_thread"] if self.schedule[name][entry]["pin_thread"] != -1 else "None"
+                schedule[name][str(entry)]["pin_thread"] = self.schedule[name][entry]["pin_thread"] if self.schedule[name][entry]["pin_thread"] is not None else "None"
                 schedule[name][str(entry)]["pin_app"] = "True" if self.schedule[name][entry]["pin_app"] is True else "False"
 
         # Order it
@@ -966,4 +968,11 @@ class Scheduler:
         return result
 
     def make_naive(self, dt: datetime) -> datetime:
-        return dt.replace(tzinfo=None)
+        """Convert a timezone-aware datetime to a naive datetime in local timezone.
+
+        This is used for display purposes only. The scheduler internally works
+        with timezone-aware UTC datetimes.
+        """
+        # Convert from UTC to local timezone, then strip timezone info
+        local_dt = dt.astimezone(self.AD.tz)
+        return local_dt.replace(tzinfo=None)

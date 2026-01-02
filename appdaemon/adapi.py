@@ -2975,7 +2975,9 @@ class ADAPI:
                 _, offset = resolve_time_str(start_str, now=now, location=self.AD.sched.location)
                 func = functools.partial(func, *args, repeat=True, offset=offset)
             case _:
-                start = await self.AD.sched.parse_datetime(start, aware=True)
+                # For run_at, always schedule for the next occurrence (today=False)
+                # This ensures that times in the past are scheduled for tomorrow
+                start = await self.AD.sched.parse_datetime(start, aware=True, today=False)
                 func = functools.partial(
                     self.AD.sched.insert_schedule,
                     name=self.name,

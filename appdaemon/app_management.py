@@ -21,7 +21,6 @@ from typing import TYPE_CHECKING, Any, Literal, TypeVar
 
 from pydantic import ValidationError
 
-
 from appdaemon.dependency import DependencyResolutionFail, find_all_dependents, get_full_module_name
 from appdaemon.dependency_manager import DependencyManager
 from appdaemon.models.config import AllAppConfig, AppConfig, GlobalModule
@@ -33,9 +32,9 @@ from . import utils
 from .models.internal.app_management import LoadingActions, ManagedObject, UpdateActions, UpdateMode
 
 if TYPE_CHECKING:
-    from .appdaemon import AppDaemon
-    from .adbase import ADBase
     from .adapi import ADAPI
+    from .adbase import ADBase
+    from .appdaemon import AppDaemon
     from .plugin_management import PluginBase
 
 T = TypeVar("T")
@@ -87,7 +86,6 @@ class AppManagement:
 
     def __init__(self, ad: "AppDaemon"):
         self.AD = ad
-        self.ext = self.AD.config.ext
         self.logger = ad.logging.get_child(self.name)
         self.error = ad.logging.get_error()
         self.diag = ad.logging.get_diag()
@@ -527,12 +525,11 @@ class AppManagement:
                     module_name,
                 )
 
-                if (pin := cfg.pin_thread) and pin >= self.AD.threading.total_threads:
+                if (pin := cfg.pin_thread) is not None and pin >= self.AD.threading.total_threads:
                     raise ade.PinOutofRange(pin_thread=pin, total_threads=self.AD.threading.total_threads)
-                elif (obj := self.objects.get(app_name)) and obj.pin_thread is not None:
+                if (obj := self.objects.get(app_name)) and obj.pin_thread is not None:
                     pin = obj.pin_thread
-                else:
-                    pin = -1
+                # else pin is already None from cfg.pin_thread
 
                 # This module should already be loaded and stored in sys.modules
                 mod_obj = await utils.run_in_executor(self, importlib.import_module, module_name)
@@ -585,7 +582,7 @@ class AppManagement:
             type="plugin",
             object=object,
             pin_app=False,
-            pin_thread=-1,
+            pin_thread=None,
             running=False,
         )
 
@@ -1047,8 +1044,8 @@ class AppManagement:
         return set(
             utils.recursive_get_files(
                 base=self.AD.app_dir.resolve(),
-                suffix=self.ext,
-                exclude=set(self.AD.exclude_dirs),
+                suffix={".yaml", ".toml"},
+                exclude=set(self.AD.exclude_dirs) | {"ruff.toml", "pyproject.toml", "secrets.yaml"},
             )
         )
 
@@ -1323,7 +1320,7 @@ class AppManagement:
             return False
 
         app_directory: Path = self.AD.app_dir / kwargs.pop("app_dir", "ad_apps")
-        app_file: Path = app_directory / kwargs.pop("app_file", f"{app}{self.ext}")
+        app_file: Path = app_directory / kwargs.pop("app_file", f"{app}{self.AD.config.ext}")
         app_directory = app_file.parent  # in case the given app_file is multi level
 
         try:
