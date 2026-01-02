@@ -22,7 +22,13 @@
 - Fix production mode and scheduler race  - contributed by [cebtenzzre](https://github.com/cebtenzzre)
 - Fix scheduler crash - contributed by [cebtenzzre](https://github.com/cebtenzzre)
 - Fix startup when no plugins are configured - contributed by [cebtenzzre](https://github.com/cebtenzzre)
-- Fix entity persistence  - contributed by [cebtenzzre](https://github.com/cebtenzzre)
+- Fix entity persistence - contributed by [cebtenzzre](https://github.com/cebtenzzre)
+- Fix for timezone handling in `run_at_sunrise()/sunset()` - contributed by [cebtenzzre](https://github.com/cebtenzzre)
+- Fix for `toal_threads == 0` - contributed by [cebtenzzre](https://github.com/cebtenzzre)
+- Fix for multiple timezone issues- contributed by [cebtenzzre](https://github.com/cebtenzzre)
+- Fix for `run_at()` running immediately if in the past - contributed by [cebtenzzre](https://github.com/cebtenzzre)
+- Thread pinning fix - contributed by [cebtenzzre](https://github.com/cebtenzzre)
+- Fix for `run_ever()` regression - contributed by [cebtenzzre](https://github.com/cebtenzzre)
 
 **Breaking Changes**
 
