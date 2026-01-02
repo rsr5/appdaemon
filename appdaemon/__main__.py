@@ -296,7 +296,6 @@ class ADMain:
             self.dep_manager = DependencyManager.from_app_directory(
                 self.model.appdaemon.app_dir,
                 exclude=self.model.appdaemon.exclude_dirs,
-                config_suffix=self.model.appdaemon.ext,
             )
 
         except Exception as e:
