@@ -210,6 +210,9 @@ class Threading:
                     "Starting apps with %s worker threads. Apps will all be assigned threads and pinned to them.",
                     self.total_threads,
                 )
+            case 0, False:  # fully async
+                self.logger.info("Starting apps with no worker threads.")
+                self.pin_threads = 0
             case int(), False:
                 self.logger.info(
                     "Starting apps with %s worker threads, with %s reserved for pinned apps",
@@ -226,7 +229,7 @@ class Threading:
                 )
 
         assert self.pin_threads is not None
-        assert self.total_threads is not None and self.total_threads > 0
+        assert self.total_threads is not None
         for _ in range(self.total_threads):
             await self.add_thread(silent=True)
 
