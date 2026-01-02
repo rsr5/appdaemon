@@ -525,12 +525,11 @@ class AppManagement:
                     module_name,
                 )
 
-                if (pin := cfg.pin_thread) and pin >= self.AD.threading.total_threads:
+                if (pin := cfg.pin_thread) is not None and pin >= self.AD.threading.total_threads:
                     raise ade.PinOutofRange(pin_thread=pin, total_threads=self.AD.threading.total_threads)
-                elif (obj := self.objects.get(app_name)) and obj.pin_thread is not None:
+                if (obj := self.objects.get(app_name)) and obj.pin_thread is not None:
                     pin = obj.pin_thread
-                else:
-                    pin = -1
+                # else pin is already None from cfg.pin_thread
 
                 # This module should already be loaded and stored in sys.modules
                 mod_obj = await utils.run_in_executor(self, importlib.import_module, module_name)
@@ -583,7 +582,7 @@ class AppManagement:
             type="plugin",
             object=object,
             pin_app=False,
-            pin_thread=-1,
+            pin_thread=None,
             running=False,
         )
 
