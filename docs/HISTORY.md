@@ -8,6 +8,7 @@
 - Add request context logging for failed HASS calls - contributed by [ekutner](https://github.com/ekutner)
 - Reload modified apps on SIGUSR2 - contributed by [chatziko](https://github.com/chatziko)
 - Using urlib to create endpoints from URLs - contributed by [cebtenzzre](https://github.com/cebtenzzre)
+- Added {py:meth}`~appdaemon.plugins.hass.hassapi.Hass.process_conversation` and {py:meth}`~appdaemon.plugins.hass.hassapi.Hass.reload_conversation` to the {ref}`Hass API <hass-api-usage>`.
 
 **Fixes**
 
@@ -17,8 +18,8 @@
 - Fix for connecting to Home Assistant with https
 - Fix for persistent namespaces in Python 3.12
 - Better error handling for receiving huge websocket messages in the Hass plugin
-- Fix for matching in get_history() - contributed by [cebtenzzre](https://github.com/cebtenzzre)
-- Fix set_state() error handling - contributed by [cebtenzzre](https://github.com/cebtenzzre)
+- Fix for matching in {py:meth}`~appdaemon.plugins.hass.hassapi.Hass.get_history` - contributed by [cebtenzzre](https://github.com/cebtenzzre)
+- Fix {py:meth}`~appdaemon.state.State.set_state` error handling - contributed by [cebtenzzre](https://github.com/cebtenzzre)
 - Fix production mode and scheduler race  - contributed by [cebtenzzre](https://github.com/cebtenzzre)
 - Fix scheduler crash - contributed by [cebtenzzre](https://github.com/cebtenzzre)
 - Fix startup when no plugins are configured - contributed by [cebtenzzre](https://github.com/cebtenzzre)
@@ -66,7 +67,7 @@ None
 - Reverted discarding of events during app initialize methods to pre-4.5  by default and added an option to turn it on if required (should fix run_in() calls with a delay of 0 during initialize, as well as listen_state() with a duration and immediate=True)
 - Fixed logic in presence/person constraints
 - Fixed logic in calling services from HA so that things like `input_number/set_value` work with entities in the `number` domain
-- Fixed `get_history` for boolean objects
+- Fixed {py:meth}`~appdaemon.plugins.hass.hassapi.Hass.get_history` for boolean objects
 - Fixed config models to allow custom plugins
 - Fixed a bug causing spurious state refreshes - contributed by [FredericMa](https://github.com/FredericMa)
 
