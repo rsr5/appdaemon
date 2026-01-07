@@ -13,7 +13,7 @@ import threading
 import traceback
 from collections import OrderedDict
 from collections.abc import AsyncGenerator, Iterable
-from copy import copy
+import copy
 from functools import partial, reduce, wraps
 from logging import Logger
 from pathlib import Path
@@ -1145,7 +1145,7 @@ class AppManagement:
 
     def _filter_running_apps(self, *trackers: Iterable[str]) -> Iterable[Iterable[str]]:
         """App names that get added to the start order indirectly may already be running."""
-        for app_name in copy(trackers[0]):
+        for app_name in copy.copy(trackers[0]):
             match self.objects.get(app_name):
                 case ManagedObject(running=True):
                     self.logger.debug("Dependent app '%s' is already running", app_name)
