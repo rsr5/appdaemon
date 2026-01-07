@@ -13,6 +13,7 @@ from abc import ABC
 from collections.abc import Iterable
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import timedelta
 from logging import Logger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Type
@@ -587,6 +588,27 @@ class SequenceExecutionFail(AppDaemonException):
 
 class BadSchedulerCallback(AppDaemonException):
     pass
+
+
+@dataclass
+class OffsetExceedsIntervalError(AppDaemonException):
+    """Raised when a scheduler offset (including random range) exceeds the event interval."""
+
+    offset: timedelta
+    interval: timedelta
+    event_type: str
+    random_start: timedelta | None = None
+    random_end: timedelta | None = None
+
+    def __str__(self):
+        parts = [f"offset={self.offset}"]
+        if self.random_start is not None or self.random_end is not None:
+            parts.append(f"random_start={self.random_start}")
+            parts.append(f"random_end={self.random_end}")
+        return (
+            f"Offset exceeds event interval for {self.event_type} schedule: "
+            f"{', '.join(parts)}, but interval is {self.interval}"
+        )
 
 
 @dataclass

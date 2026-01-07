@@ -6,6 +6,7 @@ from functools import partial
 from itertools import product
 
 import pytest
+from appdaemon.types import TimeDeltaLike
 from appdaemon.utils import parse_timedelta
 
 from tests.conftest import AsyncTempTest
@@ -23,7 +24,7 @@ STARTS = ["now - 00:00.5", "now", "now + 00:0.5"]
 @pytest.mark.parametrize(("start", "interval"), product(STARTS, INTERVALS))
 async def test_run_every(
     run_app_for_time: AsyncTempTest,
-    interval: str | int | float | timedelta,
+    interval: TimeDeltaLike,
     start: str,
     n: int = 2,
 ) -> None:

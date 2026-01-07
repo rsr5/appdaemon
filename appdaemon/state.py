@@ -5,7 +5,6 @@ import traceback
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from copy import copy, deepcopy
-from datetime import timedelta
 from enum import Enum
 from logging import Logger
 from pathlib import Path
@@ -13,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Literal, Optional, Protocol, overload
 
 from . import exceptions as ade
 from . import utils
+from .types import TimeDeltaLike
 from .utils import ADWritebackType
 
 if TYPE_CHECKING:
@@ -249,7 +249,7 @@ class State:
         namespace: str,
         entity: str | None,
         cb: StateCallbackType,
-        timeout: str | int | float | timedelta | None = None,
+        timeout: TimeDeltaLike | None = None,
         oneshot: bool = False,
         immediate: bool = False,
         pin: bool | None = None,
@@ -934,7 +934,7 @@ class State:
                 self.logger.error("Unexpected error saving namespace: %s", ns)
                 self.logger.error(traceback.format_exc())
 
-    async def periodic_save(self, interval: str | int | float | timedelta) -> None:
+    async def periodic_save(self, interval: TimeDeltaLike) -> None:
         """Periodically save all namespaces that are persistent with writeback_type 'hybrid'"""
         interval = utils.parse_timedelta(interval).total_seconds()
         while not self.AD.stopping:

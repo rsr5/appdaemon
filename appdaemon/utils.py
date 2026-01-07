@@ -41,6 +41,7 @@ from appdaemon.version import (
 
 from . import exceptions as ade
 from .parse import parse_timedelta
+from .types import TimeDeltaLike
 
 logger = logging.getLogger("AppDaemon._utility")
 file_log = logger.getChild("file")
@@ -284,24 +285,84 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 
+def parse_timedelta_or_none(input_: str | int | float | timedelta | None) -> timedelta | None:
+    """Parse to timedelta, but return None if input is None."""
+    return parse_timedelta(input_) if input_ is not None else None
+
+
 def resolve_offset(
-    offset: str | int | float | timedelta | None,
-    random_start: int | float | None = None,
-    random_end: int | float | None = None,
+    offset: timedelta,
+    random_start: timedelta | None = None,
+    random_end: timedelta | None = None,
 ) -> timedelta:
-    """Resolves a given offset with some randomization into a timedelta object."""
-    offset = parse_timedelta(offset)
+    """Resolves a given offset with some randomization into a timedelta object.
+
+    Args:
+        offset: Base offset as a timedelta
+        random_start: Start of random range as a timedelta (can be negative)
+        random_end: End of random range as a timedelta
+
+    Returns:
+        The offset plus a random value in [random_start, random_end]
+    """
     if random_start is not None or random_end is not None:
-        random_start = random_start if random_start is not None else 0
-        random_end = random_end if random_end is not None else 0
+        r_start = random_start if random_start is not None else timedelta()
+        r_end = random_end if random_end is not None else timedelta()
 
-        span = random_end - random_start
-        assert span >= 0, "Random end must be greater than or equal to random start"
+        span = r_end - r_start
+        assert span >= timedelta(), "Random end must be greater than or equal to random start"
 
-        random_secs = (span * random.random()) + random_start
-        random_offset = parse_timedelta(random_secs)
+        random_offset = span * random.random() + r_start
         offset += random_offset
     return offset
+
+
+# Maximum allowed offset for sun events (sunrise/sunset repeat daily)
+SUN_EVENT_INTERVAL = timedelta(days=1)
+
+
+def validate_offset_within_interval(
+    offset: timedelta,
+    interval: timedelta,
+    event_type: str,
+    random_start: timedelta | None = None,
+    random_end: timedelta | None = None,
+) -> None:
+    """Validate that the offset (including random range) doesn't exceed the event interval.
+
+    For repeating schedules, an offset that exceeds the interval between events would cause
+    confusing behavior where the callback fires at unpredictable times relative to the intended
+    base time.
+
+    Args:
+        offset: The base offset as a timedelta
+        interval: The interval between events as a timedelta
+        event_type: Human-readable description of the event type (e.g., "sunrise", "daily")
+        random_start: Optional random range start as a timedelta
+        random_end: Optional random range end as a timedelta
+
+    Raises:
+        OffsetExceedsIntervalError: If the maximum possible offset exceeds the interval
+    """
+    if interval <= timedelta():
+        return  # Non-repeating event or invalid interval, skip validation
+
+    r_start = random_start if random_start is not None else timedelta()
+    r_end = random_end if random_end is not None else timedelta()
+
+    # Calculate the extreme possible offsets
+    min_offset = offset + r_start
+    max_offset = offset + r_end
+
+    # Check if any possible offset would exceed the interval
+    if abs(min_offset) >= interval or abs(max_offset) >= interval:
+        raise ade.OffsetExceedsIntervalError(
+            offset=offset,
+            interval=interval,
+            event_type=event_type,
+            random_start=random_start,
+            random_end=random_end,
+        )
 
 
 def sync_decorator(coro_func: Callable[P, Awaitable[R]]) -> Callable[P, R]:
@@ -318,7 +379,7 @@ def sync_decorator(coro_func: Callable[P, Awaitable[R]]) -> Callable[P, R]:
     """
 
     @wraps(coro_func)
-    def wrapper(self, *args, timeout: str | int | float | timedelta | None = None, **kwargs) -> R:
+    def wrapper(self, *args, timeout: TimeDeltaLike | None = None, **kwargs) -> R:
         ad: "AppDaemon" = self.AD
 
         # Checks to see if it's being called from the main thread, which has the event loop in it
@@ -374,11 +435,11 @@ def _profile_this(fn):
     return profiled_fn
 
 
-def format_seconds(secs: str | int | float | timedelta) -> str:
+def format_seconds(secs: TimeDeltaLike) -> str:
     return str(parse_timedelta(secs))
 
 
-def format_timedelta(td: str | int | float | timedelta | None) -> str:
+def format_timedelta(td: TimeDeltaLike | None) -> str:
     """Format a timedelta object into a human-readable string.
 
     There are different brackets for lengths of time that will format the strings differently.
@@ -637,7 +698,7 @@ async def run_in_executor(self: Subsystem, fn: Callable[..., R], *args, **kwargs
     return await future
 
 
-def run_coroutine_threadsafe(self: "ADBase", coro: Coroutine[Any, Any, R], timeout: str | int | float | timedelta | None = None) -> R:
+def run_coroutine_threadsafe(self: "ADBase", coro: Coroutine[Any, Any, R], timeout: TimeDeltaLike | None = None) -> R:
     """Run an instantiated coroutine (async) from sync code.
 
     This wraps the native python function ``asyncio.run_coroutine_threadsafe`` with logic to add a timeout. See

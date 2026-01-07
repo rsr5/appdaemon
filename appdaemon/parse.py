@@ -10,6 +10,8 @@ import astral
 import pytz
 from astral.location import Location
 
+from .types import TimeDeltaLike
+
 
 def normalize_tz(tz: tzinfo) -> tzinfo:
     """Convert pytz timezone to ZoneInfo for clean stdlib-compatible handling.
@@ -230,7 +232,7 @@ TIME_FORMATS = [
 DATACLASSES: list[type[ParsedTimeString]] = [Now, SunEvent, ElevationEvent]
 
 
-def parse_timedelta(input_: str | int | float | timedelta | None, total: timedelta | None = None) -> timedelta:
+def parse_timedelta(input_: TimeDeltaLike | None, total: timedelta | None = None) -> timedelta:
     """Convert a variety of inputs, including strings in various formats, to a timedelta object."""
     total = timedelta() if total is None else total
 
@@ -346,7 +348,7 @@ def parse_datetime(
     now: datetime | str,
     location: Location | None = None,
     today: bool | None = None,
-    offset: str | int | float | timedelta | None = None,
+    offset: TimeDeltaLike | None = None,
     days_offset: int = 0,
     aware: bool = True,
 ) -> datetime:
