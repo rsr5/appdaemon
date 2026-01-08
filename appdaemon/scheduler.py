@@ -483,6 +483,8 @@ class Scheduler:
         self,
         interval: TimeDeltaLike,
         start: time | datetime | str | None = None,
+        *,
+        immediate: bool = False,
     ) -> datetime:
         interval = utils.parse_timedelta(interval)
         start = "now" if start is None else start
@@ -493,7 +495,7 @@ class Scheduler:
         assert isinstance(aware_start, datetime) and aware_start.tzinfo is not None
 
         # Skip forward to the next period if start is in the past
-        while aware_start < now:
+        while aware_start < now or (immediate and aware_start <= now):
             aware_start += interval
 
         return aware_start
@@ -901,7 +903,7 @@ class Scheduler:
         # Need to force timezone during time-travel mode
         if now is None:
             now = await self.get_now()
-        now = now.astimezone(self.AD.tz)
+        now = utils.ensure_timezone(now, self.AD.tz)
         return parse.parse_datetime(
             input_=input_,
             now=now,
