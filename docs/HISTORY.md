@@ -9,6 +9,7 @@
 - Reload modified apps on SIGUSR2 - contributed by [chatziko](https://github.com/chatziko)
 - Using urlib to create endpoints from URLs - contributed by [cebtenzzre](https://github.com/cebtenzzre)
 - Added {py:meth}`~appdaemon.plugins.hass.hassapi.Hass.process_conversation` and {py:meth}`~appdaemon.plugins.hass.hassapi.Hass.reload_conversation` to the {ref}`Hass API <hass-api-usage>`.
+- Added `immediate` kwargs to `run_every` to control semantics around `start == "now"`
 
 **Fixes**
 

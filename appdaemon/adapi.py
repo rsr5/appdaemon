@@ -14,9 +14,8 @@ from logging import Logger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
 
-from appdaemon import dependency
+from appdaemon import dependency, utils
 from appdaemon import exceptions as ade
-from appdaemon import utils
 from appdaemon.appdaemon import AppDaemon
 from appdaemon.entity import Entity
 from appdaemon.events import EventCallback
@@ -24,6 +23,7 @@ from appdaemon.logging import Logging
 from appdaemon.models.config.app import AppConfig
 from appdaemon.parse import resolve_time_str
 from appdaemon.state import StateCallbackType
+
 from .types import TimeDeltaLike
 
 T = TypeVar("T")
@@ -3225,6 +3225,7 @@ class ADAPI:
         start: str | dt.time | dt.datetime | None = None,
         interval: TimeDeltaLike = 0,
         *args,
+        immediate: bool = False,
         random_start: TimeDeltaLike | None = None,
         random_end: TimeDeltaLike | None = None,
         pin: bool | None = None,
@@ -3257,6 +3258,8 @@ class ADAPI:
                 - If this is a ``timedelta`` object, the current date will be assumed.
 
             *args: Arbitrary positional arguments to be provided to the callback function when it is triggered.
+            immediate (bool, optional): Whether to immediately fire the callback or wait until the first interval if the
+                start time is now.
             random_start (int, optional): Start of range of the random time.
             random_end (int, optional): End of range of the random time.
             pin (bool, optional): Optional setting to override the default thread pinning behavior. By default, this is
@@ -3310,7 +3313,7 @@ class ADAPI:
 
         """
         interval = utils.parse_timedelta(interval)
-        next_period = await self.AD.sched.get_next_period(interval, start)
+        next_period = await self.AD.sched.get_next_period(interval, start, immediate=immediate)
 
         self.logger.debug(
             "Registering %s for run_every in %s intervals, starting %s",
