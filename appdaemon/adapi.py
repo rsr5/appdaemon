@@ -3225,7 +3225,6 @@ class ADAPI:
         start: str | dt.time | dt.datetime | None = None,
         interval: TimeDeltaLike = 0,
         *args,
-        immediate: bool = False,
         random_start: TimeDeltaLike | None = None,
         random_end: TimeDeltaLike | None = None,
         pin: bool | None = None,
@@ -3242,7 +3241,9 @@ class ADAPI:
                 intervals will be calculated forward from the start time, and the first trigger will be the first
                 interval in the future.
 
-                - If this is a ``str`` it will be parsed with :meth:`~appdaemon.adapi.ADAPI.parse_time()`.
+                - If this is ``now`` (default), then the first run will be now + interval
+                - If this is ``immediate``, then the callback will be run immediately
+                - Other ``str`` types will be parsed with :meth:`~appdaemon.adapi.ADAPI.parse_time()`.
                 - If this is a ``datetime.time`` object, the current date will be assumed.
                 - If this is a ``datetime.datetime`` object, it will be used as is.
 
@@ -3258,8 +3259,6 @@ class ADAPI:
                 - If this is a ``timedelta`` object, the current date will be assumed.
 
             *args: Arbitrary positional arguments to be provided to the callback function when it is triggered.
-            immediate (bool, optional): Whether to immediately fire the callback or wait until the first interval if the
-                start time is now.
             random_start (int, optional): Start of range of the random time.
             random_end (int, optional): End of range of the random time.
             pin (bool, optional): Optional setting to override the default thread pinning behavior. By default, this is
@@ -3313,7 +3312,7 @@ class ADAPI:
 
         """
         interval = utils.parse_timedelta(interval)
-        next_period = await self.AD.sched.get_next_period(interval, start, immediate=immediate)
+        next_period = await self.AD.sched.get_next_period(interval, start)
 
         self.logger.debug(
             "Registering %s for run_every in %s intervals, starting %s",
