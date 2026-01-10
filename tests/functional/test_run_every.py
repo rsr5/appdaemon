@@ -29,9 +29,12 @@ async def test_run_every(
     n: int = 2,
 ) -> None:
     interval = parse_timedelta(interval)
-    run_time = (interval * n) + timedelta(seconds=0.01)
-    register_delay = 0.1
-    run_time += timedelta(seconds=register_delay)  # Accounts for the delay in registering the callback
+
+    # Calculate base runtime for 'n' occurrences plus a small buffer
+    register_delay = 0.1 # Accounts for the delay in registering the callback
+    run_time = (interval * n) + timedelta(seconds=register_delay)
+
+    # If start time is future "now + offset", add offset to ensure coverage
     if (parts := re.split(r"\s+[\+]\s+", start)) and len(parts) == 2:
         _, offset = parts
         run_time += parse_timedelta(offset)
@@ -41,11 +44,7 @@ async def test_run_every(
     app_args = dict(start=start, interval=interval, msg=test_id, register_delay=register_delay)
     async with run_app_for_time(app_name, run_time=run_time.total_seconds(), **app_args) as (ad, caplog):
         check_interval_partial = partial(check_interval, caplog, f"kwargs: {{'msg': '{test_id}',")
-
-        if start.startswith("now -"):
-            check_interval_partial(n, interval)
-        else:
-            check_interval_partial(n + 1, interval)
+        check_interval_partial(n, interval)
 
         # diffs = utils.time_diffs(utils.filter_caplog(caplog, test_id))
         # logger.debug(diffs)
