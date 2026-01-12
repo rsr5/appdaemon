@@ -3241,8 +3241,8 @@ class ADAPI:
                 intervals will be calculated forward from the start time, and the first trigger will be the first
                 interval in the future.
 
-                - If this is ``now`` (default), then the first run will be now + interval
-                - If this is ``immediate``, then the callback will be run immediately
+                - If this is ``now`` (default), then the first trigger will be now + interval
+                - If this is ``immediate``, then the first trigger will happen immediately
                 - Other ``str`` types will be parsed with :meth:`~appdaemon.adapi.ADAPI.parse_time()`.
                 - If this is a ``datetime.time`` object, the current date will be assumed.
                 - If this is a ``datetime.datetime`` object, it will be used as is.
