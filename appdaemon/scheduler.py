@@ -483,22 +483,31 @@ class Scheduler:
         self,
         interval: TimeDeltaLike,
         start: time | datetime | str | None = None,
-        *,
-        immediate: bool = False,
     ) -> datetime:
+        """Calculate the next execution time for a periodic interval.
+
+        If start is "immediate", returns the current time.
+        Otherwise, calculates a start time (defaulting to "now") and advances by the
+        interval until a future time is reached.
+        """
         interval = utils.parse_timedelta(interval)
         start = "now" if start is None else start
 
         # Get "now" once and use it consistently to avoid timing races
         now = await self.get_now()
-        aware_start = await self.parse_datetime(start, aware=True, now=now)
-        assert isinstance(aware_start, datetime) and aware_start.tzinfo is not None
+        match start:
+            case "immediate":
+                return now
+            case "now", _:
+                aware_next = await self.parse_datetime(start, aware=True, now=now)
+                # Skip forward to the next period if start is in the past
+                # This makes the result in the first
+                while aware_next <= now:
+                    aware_next += interval
 
-        # Skip forward to the next period if start is in the past
-        while aware_start < now or (immediate and aware_start <= now):
-            aware_start += interval
-
-        return aware_start
+        assert isinstance(aware_next, datetime) and aware_next.tzinfo is not None, \
+            "aware_start must be a timezone aware datetime"
+        return aware_next
 
     async def terminate_app(self, name: str):
         if app_sched := self.schedule.pop(name, False):
