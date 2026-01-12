@@ -498,7 +498,7 @@ class Scheduler:
         match start:
             case "immediate":
                 return now
-            case "now":
+            case "now", _:
                 aware_next = await self.parse_datetime(start, aware=True, now=now)
                 # Skip forward to the next period if start is in the past
                 # This makes the result in the first

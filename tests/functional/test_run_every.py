@@ -1,12 +1,13 @@
 import logging
 import re
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 from functools import partial
 from itertools import product
 from typing import cast
 
 import pytest
+import pytz
 from appdaemon.types import TimeDeltaLike
 from appdaemon.utils import parse_timedelta
 
@@ -81,5 +82,26 @@ async def test_run_every_start_time(
             interval=interval
         )
 
+        cb_count = await ad.state.get_state('test', 'admin', f'app.{app_name}', 'instancecallbacks')
+        assert cast(int, cb_count) >= (n + 1), "Callback didn't get called enough times."
+
+now = datetime.now(pytz.utc)
+START_TIMES = ["now", now, now.time(), now.isoformat()]
+
+@pytest.mark.asyncio(loop_scope="session")
+@pytest.mark.parametrize("start", START_TIMES)
+async def test_run_every_start_time_types(
+    run_app_for_time: AsyncTempTest,
+    start: str,
+) -> None:
+    interval = timedelta(seconds=0.25)
+    run_time = timedelta(seconds=1)
+    register_delay = timedelta(seconds=0.1)
+    n = 3
+
+    app_name = "scheduler_test_app"
+    test_id = str(uuid.uuid4())
+    app_args = dict(start=start, interval=interval, msg=test_id, register_delay=register_delay)
+    async with run_app_for_time(app_name, run_time=run_time.total_seconds(), **app_args) as (ad, caplog):
         cb_count = await ad.state.get_state('test', 'admin', f'app.{app_name}', 'instancecallbacks')
         assert cast(int, cb_count) >= (n + 1), "Callback didn't get called enough times."
