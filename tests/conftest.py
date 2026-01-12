@@ -28,7 +28,7 @@ async def ad_obj(running_loop: asyncio.BaseEventLoop, ad_cfg: AppDaemonConfig, l
     for cfg in ad.logging.config.values():
         logger_ = logging.getLogger(cfg["name"])
         logger_.propagate = True
-        logger_.setLevel("DEBUG")
+    #     logger_.setLevel("DEBUG")
 
     await ad.app_management._process_import_paths()
     ad.app_management.dependency_manager = DependencyManager(python_files=list(), config_files=list())
