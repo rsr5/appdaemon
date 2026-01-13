@@ -1479,10 +1479,6 @@ class AppManagement:
                 self.update_app(app, **kwargs)
                 self.logger.debug("Temporarily updated app '%s' with: %s", app, kwargs)
 
-            # Ensure there's at least one thread available
-            if not self.AD.threading.thread_count:
-                await self.AD.threading.create_initial_threads()
-
             created_app_object = False
             if app not in self.objects:
                 self.logger.debug("Creating ManagedObject for app '%s'", app)
