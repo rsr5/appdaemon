@@ -207,7 +207,7 @@ class Threading:
         match self.AD.config.total_threads, self.AD.config.pin_threads:
             case int(), int(): # Confirm thread counts at the end
                 assert self.AD.config.total_threads >= 0
-                assert self.AD.config.pin_threads < self.AD.config.total_threads, \
+                assert self.AD.config.pin_threads <= self.AD.config.total_threads, \
                     "pin_threads must be lower than total_threads"
             case _: # Raise an error with the config if anything is weird
                 raise ade.InvalidThreadConfiguration(

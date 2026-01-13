@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import copy
 import cProfile
 import importlib
 import inspect
@@ -13,7 +14,6 @@ import threading
 import traceback
 from collections import OrderedDict
 from collections.abc import AsyncGenerator, Iterable
-import copy
 from functools import partial, reduce, wraps
 from logging import Logger
 from pathlib import Path
@@ -528,23 +528,27 @@ class AppManagement:
                     module_name,
                 )
 
-                should_be_pinned = cfg.pin_app if cfg.pin_app is not None else self.AD.config.pin_apps
-
-                # This happens if you try to pin an app to a thread number that's too high
-                if should_be_pinned and cfg.pin_thread is not None and \
-                    (cfg.pin_thread > self.AD.threading.thread_count):
-                    raise ade.PinOutofRange(
-                        pin_thread=cfg.pin_thread,
-                        total_threads=self.AD.threading.thread_count
-                    )
-
-                # Assign a thread ID if necessary
-                if should_be_pinned and cfg.pin_thread is None:
-                    counts = self.AD.threading.thread_app_counts()
-                    _, min_tid = min((v, k) for k, v in counts.items())
-                    pin_thread = min_tid
+                if self.AD.config.fully_async:
+                    pin_thread = None
+                    should_be_pinned = False
                 else:
-                    pin_thread = cfg.pin_thread
+                    should_be_pinned = cfg.pin_app if cfg.pin_app is not None else self.AD.config.pin_apps
+
+                    # This happens if you try to pin an app to a thread number that's too high
+                    if should_be_pinned and cfg.pin_thread is not None and \
+                        (cfg.pin_thread > self.AD.threading.thread_count):
+                        raise ade.PinOutofRange(
+                            pin_thread=cfg.pin_thread,
+                            total_threads=self.AD.threading.thread_count
+                        )
+
+                    # Assign a thread ID if necessary
+                    if should_be_pinned and cfg.pin_thread is None:
+                        counts = self.AD.threading.thread_app_counts()
+                        _, min_tid = min((v, k) for k, v in counts.items())
+                        pin_thread = min_tid
+                    else:
+                        pin_thread = cfg.pin_thread
 
                 # This module should already be loaded and stored in sys.modules
                 mod_obj = await utils.run_in_executor(self, importlib.import_module, module_name)

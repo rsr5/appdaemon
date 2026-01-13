@@ -201,3 +201,7 @@ class AppDaemonConfig(BaseModel, extra="allow"):
             assert self.pin_threads <= self.total_threads, (
                 "Number of pin threads has to be less than or equal to total threads."
             )
+
+    @property
+    def fully_async(self) -> bool:
+        return self.total_threads == 0
