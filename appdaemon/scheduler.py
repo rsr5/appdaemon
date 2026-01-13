@@ -153,14 +153,17 @@ class Scheduler:
         callback: Callable | None,
         repeat: bool = False,
         type_: str | None = None,
-        interval: timedelta = timedelta(),
-        offset: timedelta = timedelta(),
+        interval: timedelta | None = None,
+        offset: timedelta | None = None,
         random_start: timedelta | None = None,
         random_end: timedelta | None = None,
         pin: bool | None = None,
         pin_thread: int | None = None,
         **kwargs,
     ) -> str:
+        interval = interval if interval is not None else timedelta()
+        offset = offset if offset is not None else timedelta()
+
         assert isinstance(aware_dt, datetime), "aware_dt must be a datetime object"
         assert aware_dt.tzinfo is not None, "aware_dt must be timezone aware"
         # aware_dt will include a timezone of some sort - convert to utc timezone
