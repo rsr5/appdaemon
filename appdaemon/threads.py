@@ -7,7 +7,7 @@ import re
 import threading
 import traceback
 from collections import deque
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterable
 from itertools import cycle
 from logging import Logger
 from queue import Queue
@@ -50,8 +50,8 @@ class Threading:
     last_stats_time: datetime.datetime = datetime.datetime.min
     last_callbacks: deque[dict[str, Any]]
 
-    _roundrobin_cycle: cycle
-    """Iterator that produces the next thread number when using the round robin load distribition method."""
+    _roundrobin_cycle: Iterable[str]
+    """Iterator that produces the name of the next thread when using the round robin load distribition method."""
 
     current_callbacks_executed: int = 0
     current_callbacks_fired: int = 0
@@ -338,6 +338,7 @@ class Threading:
                     self.logger.warning(
                         "Invalid thread ID for pinned thread in app: %s - assigning to thread 0", name
                     )
+                thread_name = f'thread-{tid}'
             case {"pin_app": False}:
                 # Putting this here to help with "find references"
                 pin_threads = self.AD.config.pin_threads
@@ -355,7 +356,7 @@ class Threading:
                         tid = randint(pin_threads, self.thread_count - 1)
                         thread_name = f'thread-{tid}'
                     case "roundrobin", _:
-                        tid = next(self._roundrobin_cycle)
+                        thread_name = next(self._roundrobin_cycle)
             case _:
                 raise RuntimeError(f'Invalid queue args: {args}')
 
@@ -495,7 +496,7 @@ class Threading:
     # Pinning
     #
 
-    async def add_thread(self, silent: bool = False, id: int | str | None = None) -> None:
+    async def add_thread(self, silent: bool = False, id: int | None = None) -> None:
         if id is None:
             thread_id = self.thread_count
         else:
