@@ -43,7 +43,7 @@ class Events:
         oneshot: bool = False,
         pin: bool | None = None,
         pin_thread: int | None = None,
-        kwargs: dict[str, Any] = None, # Intentionally not expanding the kwargs here so that there are no name clashes
+        kwargs: dict[str, Any] | None = None, # Intentionally not expanding the kwargs here so that there are no name clashes
     ) -> str | list[str] | None:
         """Add an event callback to AppDaemon's internal dicts.
 
@@ -67,6 +67,9 @@ class Events:
         Returns:
             ``None`` or the reference to the callback handle.
         """
+        # Create the default kwargs dict
+        kwargs = {} if kwargs is None else kwargs
+
         if oneshot: # this is still a little awkward, but it works until this can be refactored
             # This needs to be in the kwargs dict here that gets passed around later, so that the dispatcher knows to
             # cancel the callback after the first run.
