@@ -644,7 +644,7 @@ class State:
         attribute: str | None = None,
         default: Any | None = None,
         copy: bool = True,
-    ):
+    ) -> Any:
         self.logger.debug("get_state: %s.%s %s %s", entity_id, attribute, default, copy)
 
         def maybe_copy(data):
@@ -711,11 +711,10 @@ class State:
 
         return new_state
 
-    async def add_to_state(self, name: str, namespace: str, entity_id: str, i):
-        value = await self.get_state(name, namespace, entity_id)
-        if value is not None:
-            value += i
-            await self.set_state(name, namespace, entity_id, state=value)
+    async def add_to_state(self, name: str, namespace: str, entity_id: str, i: int = 1):
+        match (await self.get_state(name, namespace, entity_id)):
+            case (int() | float()) as value:
+                await self.set_state(name, namespace, entity_id, state=value + i)
 
     async def add_to_attr(self, name: str, namespace: str, entity_id: str, attr, i):
         state = await self.get_state(name, namespace, entity_id, attribute="all")

@@ -54,7 +54,7 @@ class AppConfig(BaseApp, extra="allow"):
     class_name: str = Field(alias="class")
     """Name of the class to use for the app. Must be accessible as an attribute of the imported `module_name`
     """
-    pin_app: bool = True
+    pin_app: bool | None = None
     """Pin this app to a particular thread. This is used to ensure that the app is always run on the same thread."""
     pin_thread: int | None = None
     """Which thread ID to pin this app to."""

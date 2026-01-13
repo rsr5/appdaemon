@@ -288,22 +288,25 @@ class AppManagement:
     def get_app_info(self, name: str):
         return self.objects.get(name)
 
-    def get_app_instance(self, name: str, id):
-        if (obj := self.objects.get(name)) and obj.id == id:
-            return obj.object
+    def get_app_instance(self, name: str, id: str):
+        match self.objects.get(name):
+            case ManagedObject(type="app", object=obj, id=str(oid)) if oid == id:
+                return obj
 
     def get_app_pin(self, name: str) -> bool:
-        return self.objects[name].pin_app
+        match self.objects.get(name):
+            case ManagedObject(type="app", pin_app=bool(pin)):
+                return pin
+        return False
 
     def set_app_pin(self, name: str, pin: bool):
         self.objects[name].pin_app = pin
-        utils.run_coroutine_threadsafe(
-            self,
-            self.AD.threading.calculate_pin_threads(),
-        )
 
-    def get_pin_thread(self, name: str) -> int:
-        return self.objects[name].pin_thread
+    def get_pin_thread(self, name: str) -> int | None:
+        match self.objects.get(name):
+            case ManagedObject(type="app", pin_app=True, pin_thread=int(pin_thread)):
+                return pin_thread
+        return None
 
     def set_pin_thread(self, name: str, thread: int):
         self.objects[name].pin_thread = thread
@@ -525,11 +528,23 @@ class AppManagement:
                     module_name,
                 )
 
-                if (pin := cfg.pin_thread) is not None and pin >= self.AD.threading.total_threads:
-                    raise ade.PinOutofRange(pin_thread=pin, total_threads=self.AD.threading.total_threads)
-                if (obj := self.objects.get(app_name)) and obj.pin_thread is not None:
-                    pin = obj.pin_thread
-                # else pin is already None from cfg.pin_thread
+                should_be_pinned = cfg.pin_app if cfg.pin_app is not None else self.AD.config.pin_apps
+
+                # This happens if you try to pin an app to a thread number that's too high
+                if should_be_pinned and cfg.pin_thread is not None and \
+                    (cfg.pin_thread > self.AD.threading.thread_count):
+                    raise ade.PinOutofRange(
+                        pin_thread=cfg.pin_thread,
+                        total_threads=self.AD.threading.thread_count
+                    )
+
+                # Assign a thread ID if necessary
+                if should_be_pinned and cfg.pin_thread is None:
+                    counts = self.AD.threading.thread_app_counts()
+                    _, min_tid = min((v, k) for k, v in counts.items())
+                    pin_thread = min_tid
+                else:
+                    pin_thread = cfg.pin_thread
 
                 # This module should already be loaded and stored in sys.modules
                 mod_obj = await utils.run_in_executor(self, importlib.import_module, module_name)
@@ -547,8 +562,8 @@ class AppManagement:
                 self.objects[app_name] = ManagedObject(
                     type="app",
                     object=new_obj,
-                    pin_app=self.AD.threading.app_should_be_pinned(app_name),
-                    pin_thread=pin,
+                    pin_app=should_be_pinned,
+                    pin_thread=pin_thread,
                     running=False,
                     module_path=Path(mod_obj.__file__),
                 )
@@ -556,6 +571,15 @@ class AppManagement:
                 # load the module path into app entity
                 module_path = await utils.run_in_executor(self, os.path.abspath, mod_obj.__file__)
                 await self.set_state(app_name, state="created", module_path=module_path)
+                if pin_thread is not None:
+                    thread_entity = f"thread.thread-{pin_thread}"
+                    counts = self.AD.threading.thread_app_counts()
+                    await self.AD.state.set_state(
+                        "_threading",
+                        "admin",
+                        thread_entity,
+                        pinned_apps=counts[pin_thread],
+                    )
                 return new_obj
             except Exception as exc:
                 await self.set_state(app_name, state="compile_error")
@@ -722,7 +746,7 @@ class AppManagement:
             and await self.get_state(name) != "compile_error"
         }  # fmt: skip
 
-        if self.AD.threading.pin_apps:
+        if self.AD.config.pin_apps:
             active_apps = self.app_config.active_app_count
             if active_apps > self.AD.threading.thread_count:
                 threads_to_add = active_apps - self.AD.threading.thread_count
@@ -1188,7 +1212,7 @@ class AppManagement:
                     self.logger.warning(f"App '{app_name}' not found in app config")
 
         # Need to have already created the ManagedObjects for the threads to get assigned
-        await self.AD.threading.calculate_pin_threads()
+        await self.AD.threading.assign_app_threads()
 
         # Account for failures and apps that depend on them
         failed = update_actions.apps.failed
@@ -1459,7 +1483,7 @@ class AppManagement:
             if app not in self.objects:
                 self.logger.debug("Creating ManagedObject for app '%s'", app)
                 await self.create_app_object(app)
-                await self.AD.threading.calculate_pin_threads()
+                await self.AD.threading.assign_app_threads()
                 created_app_object = True
 
             await self.start_app(app)
