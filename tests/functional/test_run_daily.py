@@ -22,7 +22,7 @@ class TestRunDaily:
                     for entry in entries.values():
                         match entry:
                             case {"interval": interval, "repeat": True, "timestamp": timestamp}:
-                                assert interval == timedelta(days=1).total_seconds()
+                                assert interval == timedelta(days=1)
                                 assert timestamp.astimezone(ad.tz).time() == time(12, 34, 56, 789000)
                                 break
                     else:
@@ -39,7 +39,7 @@ class TestRunDaily:
                     for entry in entries.values():
                         match entry:
                             case {"type": "next_rising", "repeat": True, "timestamp": timestamp, "offset": offset}:
-                                assert offset == timedelta(hours=-1).total_seconds()
+                                assert offset == timedelta(hours=-1)
                                 assert timestamp.astimezone(ad.tz).date() == (datetime.now(ad.tz) + timedelta(days=1)).date()
                                 break
                     else:
