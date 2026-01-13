@@ -52,7 +52,7 @@ class SchedulerTestApp(ADAPI):
 
     def run_every_callback(self, **kwargs) -> None:
         """Callback function for run_every."""
-        self.log(f"Run every callback executed with kwargs: {kwargs}")
+        self.logger.info("Run every callback executed with kwargs: %s", kwargs)
 
 
 class TestSchedulerRunIn(ADAPI):
