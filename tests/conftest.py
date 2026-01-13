@@ -81,6 +81,7 @@ def ad_cfg() -> AppDaemonConfig:
             elevation=0,
             time_zone="America/New_York",
             config_file="tests/conf/appdaemon.yaml",
+            total_threads=1,
             write_toml=False,
             ext=".yaml",
             filters=[],
