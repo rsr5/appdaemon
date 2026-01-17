@@ -528,6 +528,7 @@ class AppManagement:
                     module_name,
                 )
 
+                # Deal with the thread pinning settings
                 if self.AD.config.fully_async:
                     pin_thread = None
                     should_be_pinned = False
@@ -535,12 +536,14 @@ class AppManagement:
                     should_be_pinned = cfg.pin_app if cfg.pin_app is not None else self.AD.config.pin_apps
 
                     # This happens if you try to pin an app to a thread number that's too high
-                    if should_be_pinned and cfg.pin_thread is not None and \
-                        (cfg.pin_thread > self.AD.threading.thread_count):
-                        raise ade.PinOutofRange(
-                            pin_thread=cfg.pin_thread,
-                            total_threads=self.AD.threading.thread_count
-                        )
+                    if should_be_pinned and cfg.pin_thread is not None:
+                        if cfg.pin_thread < 0:
+                            raise ade.NegativePinThread(cfg.pin_thread)
+                        if cfg.pin_thread > self.AD.threading.thread_count:
+                            raise ade.PinOutofRange(
+                                pin_thread=cfg.pin_thread,
+                                total_threads=self.AD.threading.thread_count
+                            )
 
                     # Assign a thread ID if necessary
                     if should_be_pinned and cfg.pin_thread is None:
@@ -575,7 +578,7 @@ class AppManagement:
                 # load the module path into app entity
                 module_path = await utils.run_in_executor(self, os.path.abspath, mod_obj.__file__)
                 await self.set_state(app_name, state="created", module_path=module_path)
-                if pin_thread is not None:
+                if should_be_pinned and pin_thread is not None:
                     thread_entity = f"thread.thread-{pin_thread}"
                     counts = self.AD.threading.thread_app_counts()
                     await self.AD.state.set_state(

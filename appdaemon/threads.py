@@ -573,11 +573,12 @@ class Threading:
         counts = {int(k.split('-')[-1]): 0 for k in self.threads}
         for obj in self.AD.app_management.objects.values():
             match obj:
-                case ManagedObject(type="app", pin_thread=int(tid), name=str(name)):
+                case ManagedObject(type="app", pin_thread=int(tid)):
                     try:
                         counts[tid] += 1
                     except KeyError:
-                        raise ValueError(f"Pinned thread {tid} not found for app '{name}'")
+                        # raise ade.PinThreadNotFound(pin_thread=tid) from exc
+                        continue
         return counts
 
     def get_pinned_apps(self, thread: str | int) -> list[str]:
@@ -612,6 +613,9 @@ class Threading:
         """
         # Manually specifying a pin_thread implies pin_app=True
         if cb_pin_thread is not None:
+            # Validity check for the pin settings specified at the callback registration
+            if cb_pin_thread < 0 or cb_pin_thread > self.AD.threading.thread_count:
+                raise ade.PinOutofRange(cb_pin_thread, self.AD.threading.thread_count)
             pin_callback = True
         else:
             pin_callback = cb_pin if cb_pin is not None else self.AD.app_management.get_app_pin(name)
