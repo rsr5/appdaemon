@@ -1,7 +1,7 @@
 import logging
 import sys
 from abc import ABC
-from collections.abc import Iterable, Iterator
+from collections.abc import Generator, Iterable, Iterator
 from copy import deepcopy
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -200,10 +200,25 @@ class AllAppConfig(RootModel):
             cfg.config_path in paths
         ) # fmt: skip
 
-    @property
+    def active_apps(self) -> Generator[tuple[str, AppConfig]]:
+        for app_name, cfg in self.root.items():
+            match cfg:
+                case AppConfig(disable=False):
+                    yield app_name, cfg
+
     def active_app_count(self) -> int:
         """Active in this case means not disabled"""
-        return len([cfg for cfg in self.root.values() if isinstance(cfg, AppConfig) and not cfg.disable])
+        return len(list(self.active_apps()))
+
+    def pinned_apps(self) -> Generator[tuple[str, AppConfig]]:
+        for app_name, cfg in self.active_apps():
+            match cfg:
+                case AppConfig(pin_app=True):
+                    yield app_name, cfg
+
+    def pinned_app_count(self) -> int:
+        """Active in this case means not disabled"""
+        return len(list(self.pinned_apps()))
 
     def get_active_app_count(self) -> tuple[int, int, int]:
         active = 0

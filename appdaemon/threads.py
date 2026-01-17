@@ -195,9 +195,17 @@ class Threading:
             case None, None: # AppDaemon will automatically determine thread counts
                 if self.AD.config.pin_apps:
                     # If the global setting is to pin apps, then the thread counts are determined by the number of apps
-                    app_count = self.AD.app_management.dependency_manager.app_deps.app_config.active_app_count
-                    self.AD.config.total_threads = self.AD.config.pin_threads = app_count
-                    self.logger.info("Starting each app with a dedicated thread (%d total)", app_count)
+                    self.AD.config.total_threads = self.AD.app_management.dependency_manager.app_deps.app_config.active_app_count()
+                    self.AD.config.pin_threads = self.AD.app_management.dependency_manager.app_deps.app_config.pinned_app_count()
+                    if self.AD.config.total_threads == self.AD.config.pin_threads:
+                        self.logger.info("Starting each app with a dedicated thread (%d total)", self.AD.config.total_threads)
+                    else:
+                        assert self.AD.config.total_threads >= self.AD.config.pin_threads
+                        self.logger.info(
+                            "Starting %d total threads, %d threads for pinning",
+                            self.AD.config.total_threads,
+                            self.AD.config.pin_threads
+                        )
                 else:
                     # Otherwise the thread counts default to 10
                     self.AD.config.total_threads = self.AD.config.pin_threads = 10
