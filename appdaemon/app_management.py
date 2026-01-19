@@ -76,10 +76,6 @@ class AppManagement:
     """Dictionary that maps full module names to sets of those that depend on them
     """
 
-    app_config: AllAppConfig
-    """Keeps track of which module and class each app comes from, along with any associated global modules. Gets set at the end of :meth:`~appdaemon.app_management.AppManagement.check_config`.
-    """
-
     active_apps_sensor: str = "sensor.active_apps"
     inactive_apps_sensor: str = "sensor.inactive_apps"
     total_apps_sensor: str = "sensor.total_apps"
@@ -111,8 +107,6 @@ class AppManagement:
         for service in services:
             register(service=service)
 
-        self.mtimes_python = FileCheck()
-
         self.active_apps = set()
         self.inactive_apps = set()
 
@@ -136,6 +130,7 @@ class AppManagement:
 
     @property
     def app_config(self) -> AllAppConfig:
+        """Keeps track of which module and class each app comes from, along with any associated global modules."""
         return self.dependency_manager.app_deps.app_config
 
     @property
@@ -143,7 +138,10 @@ class AppManagement:
         return set(app_name for app_name, mo in self.objects.items() if mo.running)
 
     def is_app_running(self, app_name: str) -> bool:
-        return (mo := self.objects.get(app_name, False)) and mo.running
+        match self.objects.get(app_name):
+            case ManagedObject(type="app", running=bool(running)):
+                return running
+        return False
 
     @property
     def loaded_globals(self) -> set[str]:
@@ -155,7 +153,10 @@ class AppManagement:
 
     @property
     def sequence_config(self) -> SequenceConfig | None:
-        return self.app_config.root.get("sequence")
+        match self.app_config.root.get("sequence"):
+            case SequenceConfig() as seq_cfg:
+                return seq_cfg
+        raise KeyError("No sequence configuration found")
 
     @property
     def valid_apps(self) -> set[str]:
@@ -236,14 +237,26 @@ class AppManagement:
     async def remove_entity(self, name: str):
         await self.AD.state.remove_entity("admin", f"app.{name}")
 
-    def app_rel_path(self, app_name: str) -> Path:
-        return self.app_config.root[app_name].config_path.relative_to(self.AD.app_dir.parent)
+    def app_cfg_rel_path(self, app_name: str) -> Path:
+        """Get a Path object to the config file for the app, relative to the apps directory."""
+        match self.app_config.root.get(app_name):
+            case AppConfig(config_path=Path() as cfg_path):
+                if cfg_path.is_relative_to(self.AD.app_dir.parent):
+                    return cfg_path.relative_to(self.AD.app_dir.parent)
+                return cfg_path
+        raise KeyError("No config path for app %s", app_name)
 
-    def err_app_path(self, app_obj: object) -> Path:
-        module_path = Path(sys.modules[app_obj.__module__].__file__)
-        if module_path.is_relative_to(self.AD.app_dir.parent):
-            return module_path.relative_to(self.AD.app_dir.parent)
-        return module_path
+    def app_module_rel_path(self, app_obj: object) -> Path:
+        """Get a Path object to the module file for the app, relative to the apps directory.
+
+        This uses the loaded python modules form the ``sys.modules`` dict."""
+        match sys.modules[app_obj.__module__].__file__:
+            case str(file):
+                module_path = Path(file)
+                if module_path.is_relative_to(self.AD.app_dir.parent):
+                    return module_path.relative_to(self.AD.app_dir.parent)
+                return module_path
+        raise KeyError("No module path for app object %s", app_obj)
 
     async def init_admin_stats(self):
         # create sensors
@@ -299,7 +312,7 @@ class AppManagement:
                 return pin
         return False
 
-    def set_app_pin(self, name: str, pin: bool):
+    def set_app_pin(self, name: str, pin: bool) -> None:
         self.objects[name].pin_app = pin
 
     def get_pin_thread(self, name: str) -> int | None:
@@ -316,7 +329,7 @@ class AppManagement:
         app_obj = self.objects[app_name].object
 
         # Get the path that will be used for the exception
-        err_path = self.err_app_path(app_obj)
+        err_path = self.app_module_rel_path(app_obj)
 
         try:
             init_func = app_obj.initialize
@@ -332,7 +345,6 @@ class AppManagement:
         self.logger.info(f"Calling initialize() for {app_name}")
         if asyncio.iscoroutinefunction(init_func):
             await init_func()
-        else:
             await utils.run_in_executor(self, init_func)
 
     async def terminate_app(self, app_name: str, *, delete: bool = True) -> bool:
@@ -418,7 +430,7 @@ class AppManagement:
         # assert dependencies
         dependencies = app_cfg.dependencies
         for dep_name in dependencies:
-            rel_path = self.app_rel_path(app_name)
+            rel_path = self.app_cfg_rel_path(app_name)
             exc_args = (
                 app_name,
                 rel_path,
@@ -555,12 +567,19 @@ class AppManagement:
 
                 # This module should already be loaded and stored in sys.modules
                 mod_obj = await utils.run_in_executor(self, importlib.import_module, module_name)
+                mod_name = mod_obj.__name__
+                match mod_obj.__file__:
+                    case str(mod_file):
+                        mod_path = Path(mod_file)
+                        if mod_path.is_relative_to(self.AD.app_dir.parent):
+                            mod_path = mod_path.relative_to(self.AD.app_dir.parent)
+                    case _:
+                        mod_path = Path("<unknown>")
 
                 try:
                     app_class: type[ADBase | ADAPI] = getattr(mod_obj, class_name)
                 except AttributeError:
-                    path = mod_obj.__file__ or mod_obj.__path__._path[0]
-                    raise ade.MissingAppClass(app_name, mod_obj.__name__, Path(path).relative_to(self.AD.app_dir.parent), class_name)
+                    raise ade.MissingAppClass(app_name, mod_name, mod_path, class_name)
 
                 new_obj = app_class(self.AD, cfg)
                 assert isinstance(getattr(new_obj, "AD", None), type(self.AD)), "App objects need to have a reference to the AppDaemon object"
@@ -572,11 +591,11 @@ class AppManagement:
                     pin_app=should_be_pinned,
                     pin_thread=pin_thread,
                     running=False,
-                    module_path=Path(mod_obj.__file__),
+                    module_path=mod_path,
                 )
 
                 # load the module path into app entity
-                module_path = await utils.run_in_executor(self, os.path.abspath, mod_obj.__file__)
+                module_path = await utils.run_in_executor(self, os.path.abspath, mod_path)
                 await self.set_state(app_name, state="created", module_path=module_path)
                 if should_be_pinned and pin_thread is not None:
                     thread_entity = f"thread.thread-{pin_thread}"
@@ -618,16 +637,22 @@ class AppManagement:
         )
 
     async def terminate_sequence(self, name: str) -> bool:
-        """Terminate the sequence"""
-        assert self.objects.get(name, {}).get("type") == "sequence", f"'{name}' is not a sequence"
+        """Terminate the sequence.
 
-        if name in self.objects:
-            del self.objects[name]
-
-        await self.AD.callbacks.clear_callbacks(name)
-        self.AD.futures.cancel_futures(name)
-
-        return True
+        Returns:
+            bool: Whether the sequence was found and terminated
+        """
+        match self.objects.get(name):
+            case ManagedObject(type="sequence"):
+                del self.objects[name]
+                await self.AD.callbacks.clear_callbacks(name)
+                self.AD.futures.cancel_futures(name)
+                return True
+            case None:
+                self.logger.warning("Nothing found for name '%s'", name)
+            case _ as obj:
+                self.logger.warning("Object found for '%s', but it's not a sequence: %s", name, obj)
+        return False
 
     async def read_all(self, config_files: Iterable[Path] | None) -> AllAppConfig:
         config_files = config_files if config_files is not None else self.dependency_manager.app_config_files
@@ -698,8 +723,10 @@ class AppManagement:
             # TODO: Move this behavior to the model validation step eventually
             # It has to be here for now because the files get read in multiple places
             for gm in freshly_read_cfg.global_modules():
-                rel_path = gm.config_path.relative_to(self.AD.app_dir)
-                self.logger.warning(f"Global modules are deprecated: '{gm.name}' defined in {rel_path}")
+                cfg_path = gm.config_path
+                if cfg_path is not None and cfg_path.is_relative_to(self.AD.app_dir):
+                    rel_path = cfg_path.relative_to(self.AD.app_dir)
+                    self.logger.warning(f"Global modules are deprecated: '{gm.name}' defined in {rel_path}")
 
             if gm := freshly_read_cfg.root.get("global_modules"):
                 gm = ", ".join(f"'{g}'" for g in gm)
@@ -775,7 +802,7 @@ class AppManagement:
         return config_model
 
     @utils.executor_decorator
-    def import_module(self, module_name: str) -> int:
+    def import_module(self, module_name: str):
         """Reads an app into memory by importing or reloading the module it needs"""
         try:
             if mod := sys.modules.get(module_name):
@@ -787,15 +814,26 @@ class AppManagement:
                     self.logger.debug("Importing '%s'", module_name)
                     importlib.import_module(module_name)
         except Exception as exc:
+            # Try to extract the path from the exception
+            path = None
             match exc:
-                case SyntaxError():
-                    path = Path(exc.filename)
-                case NameError():
-                    path = Path(traceback.extract_tb(exc.__traceback__)[-1].filename)
+                case ImportError(path=str(filename)):
+                    path = Path(filename)
+                case SyntaxError(filename=str(filename)):
+                    path = Path(filename)
                 case _:
-                    raise exc
-            mtime = self.dependency_manager.python_deps.files.mtimes.get(path)
-            self.dependency_manager.python_deps.bad_files.add((path, mtime))
+                    tb = traceback.extract_tb(exc.__traceback__)
+                    match tb[-1]:
+                        case traceback.FrameSummary(filename=str(filename)):
+                            path = Path(filename)
+
+            # If there was a path found and it was a tracked file, mark it as bad
+            match path:
+                case Path() as path if path in self.dependency_manager.python_deps.files.mtimes:
+                    match self.dependency_manager.python_deps.files.mtimes.get(path):
+                        case float(mtime):
+                            self.dependency_manager.python_deps.bad_files.add((path, mtime))
+
             raise exc
 
     @utils.executor_decorator
