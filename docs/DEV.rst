@@ -61,15 +61,15 @@ Pre-requisites
 ^^^^^^^^^^^^^^
 For the easiest setup, `install uv <https://docs.astral.sh/uv/getting-started/installation/>`_ first.
 
-.. tabs::
+.. code-block:: console
+   :caption: Linux/macOS
 
-   .. code-tab:: console
+   $ curl -LsSf https://astral.sh/uv/install.sh | sh
 
-        $ curl -LsSf https://astral.sh/uv/install.sh | sh
+.. code-block:: powershell
+   :caption: Windows
 
-   .. code-tab:: powershell
-
-        powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
 Clone the repository
 ^^^^^^^^^^^^^^^^^^^^
