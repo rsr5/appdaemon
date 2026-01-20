@@ -3,7 +3,7 @@ import logging
 from collections.abc import AsyncGenerator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable, Protocol
 
 import pytest
 import pytest_asyncio
@@ -41,13 +41,13 @@ def ad_cfg() -> AppDaemonConfig:
             timewarp=1.0,
             max_clock_skew=1,
             # loglevel="INFO",
-            module_debug={
-                "_app_management": "DEBUG",
-                "_state": "DEBUG",
+            # module_debug={
+                # "_app_management": "DEBUG",
+                # "_state": "DEBUG",
                 # "_events": "DEBUG",
                 # "_scheduler": "DEBUG",
-                "_utility": "DEBUG",
-            },
+                # "_utility": "DEBUG",
+            # },
             # namespaces={"test_namespace": {"writeback": "hybrid", "persist": False}},
         )
     )
@@ -136,7 +136,13 @@ async def run_app_for_time(ad: AppDaemon, caplog: pytest.LogCaptureFixture) -> A
     return _run
 
 
-ConfiguredAppDaemonFunc = Callable[..., AbstractAsyncContextManager[tuple[AppDaemon, pytest.LogCaptureFixture]]]
+class ConfiguredAppDaemonFunc(Protocol):
+    def __call__(
+        self,
+        app_cfgs: dict[str, dict[str, Any]] | None = None,
+        extra_ad_cfg: dict[str, Any] | None = None,
+        loggers: Iterable[str] | None = None,
+    ) -> AbstractAsyncContextManager[tuple[AppDaemon, pytest.LogCaptureFixture]]: ...
 
 @pytest_asyncio.fixture(scope="function")
 async def configured_appdaemon(
@@ -151,12 +157,17 @@ async def configured_appdaemon(
     an async context manager yielding a configured, started AppDaemon instance.
     """
     @asynccontextmanager
-    async def _run(app_cfgs: dict, **kwargs: Any) -> AsyncGenerator[tuple[AppDaemon, pytest.LogCaptureFixture]]:
+    async def _run(
+        app_cfgs: dict[str, dict[str, Any]] | None = None,
+        extra_ad_cfg: dict[str, Any] | None = None,
+        loggers: Iterable[str] | None = None,
+    ) -> AsyncGenerator[tuple[AppDaemon, pytest.LogCaptureFixture]]:
         assert running_loop == asyncio.get_running_loop(), "The running loop should match the one passed in"
 
         # Merge kwargs into the base config
-        config_dict = ad_cfg.model_dump(mode="python")
-        config_dict.update(kwargs)
+        config_dict = config_dict = ad_cfg.model_dump(by_alias=True)
+        extra_ad_cfg = {} if extra_ad_cfg is None else extra_ad_cfg
+        config_dict.update(extra_ad_cfg)
         custom_cfg = AppDaemonConfig.model_validate(config_dict)
 
         ad = AppDaemon(
@@ -166,14 +177,25 @@ async def configured_appdaemon(
         )
         logger.info(f"Created AppDaemon object {hex(id(ad))} with custom config")
 
+        # Enable propagation for all AppDaemon loggers so caplog can capture them
         for cfg in ad.logging.config.values():
-            logger_ = logging.getLogger(cfg["name"])
+            match cfg:
+                case {"name": str(name)}:
+                    logger_ = logging.getLogger(name)
+                    logger_.propagate = True
+
+        loggers = [] if loggers is None else loggers
+        for logger_name in loggers:
+            logger.info(f"Setting up logger AppDaemon.{logger_name} for testing")
+            logger_ = logging.getLogger(f"AppDaemon.{logger_name}")
             logger_.propagate = True
+            logger_.setLevel("DEBUG")
 
         await ad.app_management._process_import_paths()
         config_files = list(recursive_get_files(base=ad.app_dir, suffix={'.yaml', '.toml'}))
         ad.app_management.dependency_manager = DependencyManager(python_files=list(), config_files=config_files)
 
+        app_cfgs = app_cfgs if app_cfgs is not None else {}
         app_cfgs = {
             name: {
                 "config_path": Path.cwd(),
@@ -188,7 +210,7 @@ async def configured_appdaemon(
         ad.start()
         logger.info(f"AppDaemon[{hex(id(ad))}] started")
 
-        with caplog.at_level(logging.DEBUG):
+        with caplog.at_level(logging.DEBUG, "AppDaemon"):
             yield ad, caplog
 
         logger.info(f"AppDaemon[{hex(id(ad))}] stopping")

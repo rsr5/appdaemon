@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import copy
 import cProfile
+import functools
 import importlib
 import inspect
 import io
@@ -345,6 +346,7 @@ class AppManagement:
         self.logger.info(f"Calling initialize() for {app_name}")
         if asyncio.iscoroutinefunction(init_func):
             await init_func()
+        else:
             await utils.run_in_executor(self, init_func)
 
     async def terminate_app(self, app_name: str, *, delete: bool = True) -> bool:
@@ -559,6 +561,7 @@ class AppManagement:
 
                     # Assign a thread ID if necessary
                     if should_be_pinned and cfg.pin_thread is None:
+                        await self.AD.threading.create_initial_threads()
                         counts = self.AD.threading.thread_app_counts()
                         _, min_tid = min((v, k) for k, v in counts.items())
                         pin_thread = min_tid
@@ -779,14 +782,6 @@ class AppManagement:
             and not cfg.disable
             and await self.get_state(name) != "compile_error"
         }  # fmt: skip
-
-        if self.AD.config.pin_apps:
-            active_apps = self.app_config.active_app_count
-            if active_apps > self.AD.threading.thread_count:
-                threads_to_add = active_apps - self.AD.threading.thread_count
-                self.logger.debug(f"Adding {threads_to_add} threads based on the active app count")
-                for _ in range(threads_to_add):
-                    await self.AD.threading.add_thread(silent=False)
 
     @utils.executor_decorator
     def read_config_file(self, file: Path) -> AllAppConfig:
@@ -1357,75 +1352,68 @@ class AppManagement:
         if update_actions.sequences.changes or update_mode == UpdateMode.INIT:
             await self.AD.sequences.update_sequence_entities(self.sequence_config)
 
-    @utils.executor_decorator
-    def create_app(self, app: str = None, **kwargs):
-        """Used to create an app, which is written to a config file"""
+    async def create_app(self, app: str, **app_config) -> None:
+        """Create an app
 
-        executed = True
-        app_config = {}
+        Args:
+            app (str): The name of the app to create.
+
+        App Config Kwargs:
+            class (str): The class name of the app to create.
+            module (str): The module where the app class is located.
+            write_app_file(bool, optional): Whether to write the app config to a file. Defaults to True.
+            app_dir (str, optional): The directory to write the app file to, relative to the appdaemon apps directory. Defaults to "ad_apps".
+            app_file (str, optional): The name of the app file to write, including extension. Defaults to "{app_name}.yaml".
+        """
+
+        match app_config:
+            case {"module": str(app_module), "class": str(app_class)}:
+                self.logger.info("Creating app %s (module: %s, class: %s)", app, app_module, app_class)
+            case _:
+                self.logger.error("Could not create app %s, as module and class is required", app)
+                return
+
         new_config = OrderedDict()
 
-        app_module = kwargs.get("module")
-        app_class = kwargs.get("class")
+        write_app_file: bool = app_config.pop("write_app_file", True)
+        if write_app_file:
+            app_directory: Path = self.AD.app_dir / app_config.pop("app_dir", "ad_apps")
+            app_file: Path = app_directory / app_config.pop("app_file", f"{app}{self.AD.config.ext}")
+            if app_file.exists() and app_file.is_file():
+                # the file exists so there might be apps there already so read to update
+                # now open the file and edit the yaml
+                new_cfg = await self.read_config_file(app_file)
+                new_config.update(new_cfg.model_dump(mode="python", by_alias=True))
 
-        if app is None:  # app name not given
-            # use the module name as the app's name
-            app = app_module
+            # now load up the new config
+            new_config.update({app: app_config})
+            new_config.move_to_end(app)
 
-            app_config[app] = kwargs
-
-        else:
-            if app_module is None and app in kwargs:
-                app_module = kwargs[app].get("module")
-                app_class = kwargs[app].get("class")
-
-                app_config[app] = kwargs[app]
-
+            try:
+                # Make sure the writing doesn't get done in the MainThread
+                await self.AD.loop.run_in_executor(
+                    executor=self.AD.executor,
+                    func=functools.partial(
+                        utils.write_config_file,
+                        app_file,
+                        **new_config
+                    )
+                )
+            except Exception as exc:
+                raise ade.AppConfigWriteFail(app_name=app, path=app_file) from exc
             else:
-                app_config[app] = kwargs
-
-        if app_module is None or app_class is None:
-            self.logger.error("Could not create app %s, as module and class is required", app)
-            return False
-
-        app_directory: Path = self.AD.app_dir / kwargs.pop("app_dir", "ad_apps")
-        app_file: Path = app_directory / kwargs.pop("app_file", f"{app}{self.AD.config.ext}")
-        app_directory = app_file.parent  # in case the given app_file is multi level
-
-        try:
-            app_directory.mkdir(parents=True, exist_ok=True)
-        except Exception:
-            self.logger.error("Could not create directory %s", app_directory)
-            return False
-
-        if app_file.is_file():
-            # the file exists so there might be apps there already so read to update
-            # now open the file and edit the yaml
-            new_config.update(self.read_config_file(app_file))
-
-        # now load up the new config
-        new_config.update(app_config)
-        new_config.move_to_end(app)
-
-        # at this point now to create write to file
-        try:
-            utils.write_config_file(app_file, **new_config)
-
-            data = {
-                "event_type": "app_created",
-                "data": {"app": app, **app_config[app]},
-            }
-            self.AD.loop.create_task(self.AD.events.process_event("admin", data))
-
-        except Exception:
-            self.error.warning("-" * 60)
-            self.error.warning("Unexpected error while writing to file: %s", app_file)
-            self.error.warning("-" * 60)
-            self.error.warning(traceback.format_exc())
-            self.error.warning("-" * 60)
-            executed = False
-
-        return executed
+                data = {
+                    "event_type": "app_created",
+                    "data": {"app": app, **app_config},
+                }
+                self.AD.loop.create_task(self.AD.events.process_event("admin", data))
+        else:
+            # just update the in memory config
+            app_config['name'] = app
+            self.app_config.root[app] = AppConfig.model_validate(app_config)
+            await self.create_app_object(app)
+            await self.start_app(app)
+            return
 
     @utils.executor_decorator
     def edit_app(self, app: str, **kwargs):
@@ -1613,11 +1601,11 @@ class AppManagement:
                 asyncio.create_task(self.check_app_updates(mode=UpdateMode.RELOAD_APPS))
             case (_, str()):
                 # first the check app updates needs to be stopped if on
-                mode = copy.deepcopy(self.AD.production_mode)
+                # mode = copy.deepcopy(self.AD.production_mode)
 
-                if mode is False:  # it was off
-                    self.AD.production_mode = True
-                    await self.AD.utility.sleep(0.5, timeout_ok=True)
+                # if mode is False:  # it was off
+                #     self.AD.production_mode = True
+                #     await self.AD.utility.sleep(0.5, timeout_ok=True)
 
                 match service:
                     case "enable":
@@ -1631,9 +1619,9 @@ class AppManagement:
                     case "remove":
                         result = await self.remove_app(app, **kwargs)
 
-                if mode is False:  # meaning it was not in production mode
-                    await self.AD.utility.sleep(1, timeout_ok=True)
-                    self.AD.production_mode = mode
+                # if mode is False:  # meaning it was not in production mode
+                #     await self.AD.utility.sleep(1, timeout_ok=True)
+                #     self.AD.production_mode = mode
 
                 return result
             case _:

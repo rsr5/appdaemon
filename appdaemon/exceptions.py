@@ -385,6 +385,15 @@ class BadAppConfigFile(AppDaemonException):
 
 
 @dataclass
+class AppConfigWriteFail(AppDaemonException):
+    app_name: str
+    path: Path
+
+    def __str__(self):
+        return f"Failed to write app '{self.app_name}' config to '{self.path}'"
+
+
+@dataclass
 class TimeOutException(AppDaemonException):
     msg: str
 

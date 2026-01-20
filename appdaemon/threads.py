@@ -79,30 +79,6 @@ class Threading:
         `threads` dictionary, so it can't be set directly."""
         return len(self.threads)
 
-    @property
-    def total_threads(self) -> int:
-        """Number of threads to create for apps.
-
-        By default this is automatically calculated, but can also be manually configured by the user in
-        ``appdaemon.yaml``.
-        """
-        match self.AD.config.total_threads:
-            case int(total_threads):
-                return total_threads
-        raise RuntimeError("total_threads hasn't been resolved yet")
-
-    @property
-    def pin_threads(self) -> int:
-        """Number of out of the total threads to reserve for pinning.
-
-        By default this is automatically calculated, but can also be manually configured by the user in
-        ``appdaemon.yaml``.
-        """
-        match self.AD.config.pin_threads:
-            case int(pin_threads):
-                return pin_threads
-        raise RuntimeError("pin_threads hasn't been resolved yet")
-
     def stop(self):
         """Stop all threads."""
         for thread_name, thread in self.threads.items():
@@ -110,8 +86,17 @@ class Threading:
                 case {"queue": Queue() as q, "thread": Thread() as t}:
                     self.logger.debug("Stopping %s", thread_name)
                     q.put_nowait(None)
-                    t.join(timeout=1)
-                    self.logger.debug("Joined %s", thread_name)
+                    try:
+                        t.join(timeout=1)
+                        self.logger.debug("Joined %s", thread_name)
+                    except RuntimeError as exc:
+                        self.logger.error("Error joining thread %s: %s", thread_name, exc)
+
+    def _pin_settings(self):
+        return {
+            name: {'pinned': obj.pin_app, 'pin_thread': obj.pin_thread}
+            for name, obj in self.AD.app_management.objects.items()
+        }
 
     async def get_q_update(self):
         """Updates queue sizes"""
@@ -162,10 +147,9 @@ class Threading:
         await self.add_entity("sensor.threads_max_busy_time", "never")
         await self.add_entity("sensor.threads_last_action_time", "never")
 
-    def resolve_thread_counts(self):
+    def resolve_thread_counts(self) -> tuple[int, int]:
         """Resolve thread configuration into a concrete count of the total number of threads to create and the number of
         them to reserve for pinning."""
-        # Putting this here to help with "find references"
         pin_threads = self.AD.config.pin_threads
         total_threads = self.AD.config.total_threads
 
@@ -173,7 +157,7 @@ class Threading:
         match total_threads, pin_threads:
             case 0, _: # Special case of 0 threads
                 # Force pin_threads to 0
-                self.AD.config.pin_threads = 0
+                pin_threads = 0
                 self.logger.info("Starting apps with no worker threads.")
             case int(), int(): # Both are set in the configuration file
                 assert total_threads > 0, "specified total_threads has to be above 0"
@@ -190,33 +174,34 @@ class Threading:
                 self.logger.info("Starting %d worker threads for apps", total_threads)
                 if self.AD.config.pin_apps:
                     # If the global setting for apps is to pin them, use all the threads for pinning
-                    self.AD.config.pin_threads = total_threads
+                    pin_threads = total_threads
                     self.logger.info("All %d threads can be used for pinning.")
             case None, None: # AppDaemon will automatically determine thread counts
                 if self.AD.config.pin_apps:
                     # If the global setting is to pin apps, then the thread counts are determined by the number of apps
-                    self.AD.config.total_threads = self.AD.app_management.dependency_manager.app_deps.app_config.active_app_count()
-                    self.AD.config.pin_threads = self.AD.app_management.dependency_manager.app_deps.app_config.pinned_app_count()
-                    if self.AD.config.total_threads == self.AD.config.pin_threads:
-                        self.logger.info("Starting each app with a dedicated thread (%d total)", self.AD.config.total_threads)
+                    total_threads = self.AD.app_management.dependency_manager.app_deps.app_config.active_app_count()
+                    pin_threads = self.AD.app_management.dependency_manager.app_deps.app_config.pinned_app_count()
+                    if total_threads == pin_threads:
+                        self.logger.info("Starting each app with a dedicated thread (%d total)", total_threads)
                     else:
-                        assert self.AD.config.total_threads >= self.AD.config.pin_threads
+                        assert total_threads >= pin_threads
                         self.logger.info(
                             "Starting %d total threads, %d threads for pinning",
-                            self.AD.config.total_threads,
-                            self.AD.config.pin_threads
+                            total_threads,
+                            pin_threads
                         )
                 else:
                     # Otherwise the thread counts default to 10
-                    self.AD.config.total_threads = self.AD.config.pin_threads = 10
+                    total_threads = pin_threads = 10
                     self.logger.info("Startinging with a default of 10 worker threads.")
 
         # Runtime checks to ensure that nothing weird happened
-        match self.AD.config.total_threads, self.AD.config.pin_threads:
+        match total_threads, pin_threads:
             case int(), int(): # Confirm thread counts at the end
-                assert self.AD.config.total_threads >= 0
-                assert self.AD.config.pin_threads <= self.AD.config.total_threads, \
+                assert total_threads >= 0
+                assert pin_threads <= total_threads, \
                     "pin_threads must be lower than total_threads"
+                return total_threads, pin_threads
             case _: # Raise an error with the config if anything is weird
                 raise ade.InvalidThreadConfiguration(
                     self.AD.config.total_threads,
@@ -234,24 +219,25 @@ class Threading:
         Also by default, all of the threads created will be for pinned apps, but this can be overridden to be just a
         subset of the `total_threads` with the `pin_threads` setting.
         """
-        self.resolve_thread_counts()
-        for _ in range(self.total_threads):
+        total_threads, pin_threads = self.resolve_thread_counts()
+        for _ in range(total_threads - self.thread_count):
             await self.add_thread(silent=True)
 
-        free_threads = list(self.threads.keys())[self.AD.config.pin_threads:]
+        free_threads = list(self.threads.keys())[pin_threads:]
         self._roundrobin_cycle = cycle(free_threads)
 
         # Add thread object to track async
-        await self.add_entity(
-            "thread.async",
-            "idle",
-            {
-                "q": 0,
-                "is_alive": True,
-                "time_called": "never",
-                "pinned_apps": [],
-            },
-        )
+        if not self.AD.state.entity_exists("admin", "thread.async"):
+            await self.add_entity(
+                "thread.async",
+                "idle",
+                {
+                    "q": 0,
+                    "is_alive": True,
+                    "time_called": "never",
+                    "pinned_apps": [],
+                },
+            )
 
     def get_q(self, thread_id: str) -> Queue[dict[str, Any] | None]:
         match self.threads.get(thread_id):
@@ -538,7 +524,9 @@ class Threading:
 
         Updates the state of entities in the `thread` domain in the `admin` namespace. For example `thread.thread-0`.
         """
-        if not self.pin_threads > 0:
+        _, pin_threads = self.resolve_thread_counts()
+
+        if not pin_threads > 0:
             return
 
         if not self.AD.app_management.objects:

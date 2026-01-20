@@ -955,6 +955,7 @@ def get_object_size(obj, seen=None):
 def write_config_file(file: Path, **kwargs):
     """Writes a single YAML or TOML file."""
     file = Path(file) if not isinstance(file, Path) else file
+    file.parent.mkdir(parents=True, exist_ok=True)
     match file.suffix:
         case ".yaml":
             return write_yaml_config(file, **kwargs)

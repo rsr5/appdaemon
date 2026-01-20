@@ -719,7 +719,7 @@ class State:
     async def add_to_attr(self, name: str, namespace: str, entity_id: str, attr, i):
         state = await self.get_state(name, namespace, entity_id, attribute="all")
         if state is not None:
-            state["attributes"][attr] = copy(state["attributes"][attr]) + i
+            state["attributes"][attr] = copy(state["attributes"].get(attr, 0)) + i
             await self.set_state(name, namespace, entity_id, attributes=state["attributes"])
 
     def register_state_services(self, namespace: str) -> None:

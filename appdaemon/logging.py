@@ -5,10 +5,9 @@ import sys
 import traceback
 import uuid
 from collections import OrderedDict
-from logging import LogRecord, Logger, StreamHandler
+from logging import Logger, LogRecord, StreamHandler
 from logging.handlers import RotatingFileHandler
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
-
 
 import appdaemon.utils as utils
 from appdaemon.appdaemon import AppDaemon
@@ -184,7 +183,7 @@ class Logging(metaclass=utils.Singleton):
     """
     name: str = "_logging"
 
-    config: Dict[str, Dict[str, Any]]
+    config: dict[str, dict[str, Any]]
 
     log_levels = {
         "CRITICAL": 50,
