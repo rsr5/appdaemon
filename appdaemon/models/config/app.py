@@ -213,7 +213,7 @@ class AllAppConfig(RootModel):
     def pinned_apps(self) -> Generator[tuple[str, AppConfig]]:
         for app_name, cfg in self.active_apps():
             match cfg:
-                case AppConfig(pin_app=True):
+                case AppConfig(pin_app=pin) if bool(pin):
                     yield app_name, cfg
 
     def pinned_app_count(self) -> int:

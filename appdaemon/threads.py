@@ -180,7 +180,7 @@ class Threading:
                 if self.AD.config.pin_apps:
                     # If the global setting is to pin apps, then the thread counts are determined by the number of apps
                     total_threads = self.AD.app_management.dependency_manager.app_deps.app_config.active_app_count()
-                    pin_threads = self.AD.app_management.dependency_manager.app_deps.app_config.pinned_app_count()
+                    pin_threads = self.AD.app_management.pinned_app_count()
                     if total_threads == pin_threads:
                         self.logger.info("Starting each app with a dedicated thread (%d total)", total_threads)
                     else:

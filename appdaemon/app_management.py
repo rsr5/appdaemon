@@ -14,7 +14,7 @@ import sys
 import threading
 import traceback
 from collections import OrderedDict
-from collections.abc import AsyncGenerator, Iterable
+from collections.abc import AsyncGenerator, Generator, Iterable
 from functools import partial, reduce, wraps
 from logging import Logger
 from pathlib import Path
@@ -321,6 +321,17 @@ class AppManagement:
             case ManagedObject(type="app", pin_app=True, pin_thread=int(pin_thread)):
                 return pin_thread
         return None
+
+    def pinned_apps(self) -> Generator[str]:
+        """Returns the number of pinned apps currently managed."""
+        for app_name, obj in self.objects.items():
+            match obj:
+                case ManagedObject(type="app", pin_app=True):
+                    yield app_name
+
+    def pinned_app_count(self) -> int:
+        """Returns the number of pinned apps currently managed."""
+        return len(list(self.pinned_apps()))
 
     def set_pin_thread(self, name: str, thread: int):
         self.objects[name].pin_thread = thread
