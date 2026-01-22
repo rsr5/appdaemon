@@ -32,23 +32,7 @@ def ad_cfg() -> AppDaemonConfig:
             elevation=0,
             time_zone="America/New_York",
             config_file="tests/conf/appdaemon.yaml",
-            # total_threads=3,
-            write_toml=False,
             ext=".yaml",
-            filters=[],
-            starttime=None,
-            endtime=None,
-            timewarp=1.0,
-            max_clock_skew=1,
-            # loglevel="INFO",
-            # module_debug={
-                # "_app_management": "DEBUG",
-                # "_state": "DEBUG",
-                # "_events": "DEBUG",
-                # "_scheduler": "DEBUG",
-                # "_utility": "DEBUG",
-            # },
-            # namespaces={"test_namespace": {"writeback": "hybrid", "persist": False}},
         )
     )
 
