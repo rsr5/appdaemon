@@ -146,12 +146,15 @@ class TestEventCallback:
                 The listen and fire namespaces do not match, so the callback is not executed.
         """
         namespace = "test"
+        base_app_cfg = {
+            "module": "event_test_app",
+            "class": "TestEventCallback",
+        }
         if sign:
             # The listen and fire namespaces have to match for the callback to work
             app_cfgs = {
                 self.app_name: {
-                    "module": "event_test_app",
-                    "class": "TestEventCallback",
+                    **base_app_cfg,
                     "listen_kwargs": {"namespace": namespace},
                     "fire_kwargs": {"namespace": namespace},
                 }
@@ -160,8 +163,7 @@ class TestEventCallback:
             # If the event is listened in a different namespace, then it won't be triggered
             app_cfgs = {
                 self.app_name: {
-                    "module": "event_test_app",
-                    "class": "TestEventCallback",
+                    **base_app_cfg,
                     "listen_kwargs": {"namespace": namespace},
                 }
             }

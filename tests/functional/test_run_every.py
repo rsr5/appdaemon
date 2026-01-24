@@ -39,7 +39,7 @@ class RunEveryTestResults:
                     created=float(created),
                 ) if "initialized" in msg:
                     results.app_init = datetime.fromtimestamp(created)
-                case logging.LogRecord(msg="Running in %s mode: %s", created=float(created)):
+                case logging.LogRecord(msg="Registering callbacks from %s", created=float(created)):
                     results.callback_start = datetime.fromtimestamp(created)
                 case logging.LogRecord(
                     appname=str(_app_name),
@@ -107,7 +107,7 @@ async def test_run_every(
     app_cfgs = {
         app_name: {
             "module": "scheduler_test_app",
-            "class": "SchedulerTestApp",
+            "class": "RunEveryTestApp",
             "start": start,
             "interval": interval,
             "msg": test_id,
@@ -139,7 +139,7 @@ async def test_now_immediate(
     app_cfgs = {
         app_name: {
             "module": "scheduler_test_app",
-            "class": "SchedulerTestApp",
+            "class": "RunEveryTestApp",
             "start": start,
             "interval": interval,
             "msg": test_id,
@@ -190,7 +190,7 @@ async def test_start_time_types(
     app_cfgs = {
         app_name: {
             "module": "scheduler_test_app",
-            "class": "SchedulerTestApp",
+            "class": "RunEveryTestApp",
             "start": start_time,
             "interval": interval,
             "msg": test_id,
