@@ -3,7 +3,7 @@ from datetime import datetime
 
 import pytest
 import pytz
-from appdaemon.utils import clean_http_kwargs, clean_kwargs, remove_literals
+from appdaemon.utils.functools import clean_http_kwargs, clean_kwargs, remove_literals
 
 pytestmark = [
     pytest.mark.ci,

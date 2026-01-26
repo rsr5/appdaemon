@@ -2,7 +2,8 @@ import logging
 import uuid
 
 import pytest
-from appdaemon.utils import format_timedelta, parse_timedelta
+from appdaemon.utils.parse import parse_timedelta
+from appdaemon.utils.str import format_timedelta
 
 logger = logging.getLogger("AppDaemon._test")
 

@@ -9,7 +9,7 @@ from typing import cast
 import pytest
 import pytz
 from appdaemon.types import TimeDeltaLike
-from appdaemon.utils import parse_timedelta
+from appdaemon.utils.parse import parse_timedelta
 
 from tests.conftest import AsyncTempTest
 

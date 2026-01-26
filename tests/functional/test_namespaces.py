@@ -3,7 +3,7 @@ import logging
 import uuid
 
 import pytest
-from appdaemon.utils import PersistentDict
+from appdaemon.utils.state import PersistentDict
 
 from .utils import AsyncTempTest
 
