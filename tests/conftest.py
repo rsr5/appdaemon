@@ -191,13 +191,13 @@ async def configured_appdaemon(
         ad.app_management.dependency_manager.app_deps.app_config = AllAppConfig.model_validate(app_cfgs)
         ad.app_management.dependency_manager.app_deps.refresh_dep_graph()
 
-        ad.start()
-        logger.info(f"AppDaemon[{hex(id(ad))}] started")
-
-        with caplog.at_level(logging.DEBUG, "AppDaemon"):
-            yield ad, caplog
-
-        logger.info(f"AppDaemon[{hex(id(ad))}] stopping")
-        await ad.stop()
+        try:
+            ad.start()
+            logger.info(f"AppDaemon[{hex(id(ad))}] started")
+            with caplog.at_level(logging.DEBUG, "AppDaemon"):
+                yield ad, caplog
+        finally:
+            logger.info(f"AppDaemon[{hex(id(ad))}] stopping")
+            await ad.stop()
 
     return _run
