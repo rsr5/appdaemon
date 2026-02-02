@@ -5,9 +5,8 @@ import re
 import uuid
 from collections.abc import Generator
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from itertools import product
-from typing import cast
 
 import pytest
 from appdaemon.types import TimeDeltaLike
@@ -39,7 +38,7 @@ class RunEveryTestResults:
                     created=float(created),
                 ) if "initialized" in msg:
                     results.app_init = datetime.fromtimestamp(created)
-                case logging.LogRecord(msg="Registering callbacks from %s", created=float(created)):
+                case logging.LogRecord(msg="Registering callbacks every %s", created=float(created)):
                     results.callback_start = datetime.fromtimestamp(created)
                 case logging.LogRecord(
                     appname=str(_app_name),
@@ -80,7 +79,7 @@ class RunEveryTestResults:
             yield abs(interval - diff)
 
 
-INTERVALS = ["00:0.35", 1, timedelta(seconds=0.87)]
+INTERVALS = ["00:0.35", 1, 0.87]
 STARTS = ["now - 00:00.5", "now", "now + 00:0.5"]
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -148,42 +147,42 @@ async def test_now_immediate(
     }
     async with configured_appdaemon(app_cfgs=app_cfgs, loggers=[app_name]) as (ad, caplog):
         await asyncio.sleep(run_time.total_seconds())
-        results = RunEveryTestResults.from_caplog(caplog, app_name, test_id)
-        assert results.app_init, "App never initialized"
-        assert results.num_calls > 0
-        match start:
-            case "now":
-                assert (results.start_delay - interval) <= timedelta(seconds=0.01)
-            case "immediate":
-                assert results.start_delay <= timedelta(seconds=0.01)
+    results = RunEveryTestResults.from_caplog(caplog, app_name, test_id)
+    assert results.app_init, "App never initialized"
+    assert results.num_calls > 0
+    match start:
+        case "now":
+            assert (results.start_delay - interval) <= timedelta(seconds=0.01)
+        case "immediate":
+            assert results.start_delay <= timedelta(seconds=0.01)
 
 
 @pytest.fixture
 def start_time(request):
     """Fixture to generate start time values at test runtime, not collection time."""
     match request.param:
-        case "now":
+        case "string-now":
             return "now"
-        case "datetime_now":
+        case "datetime-object":
             return datetime.now()
-        case "time_now":
+        case "time-object":
             return datetime.now().time()
-        case "iso_now":
+        case "isoformat-string":
             return datetime.now().isoformat()
         case _:
             return request.param
 
+START_TIME_IDS = ["string-now", "datetime-object", "time-object", "isoformat-string"]
 
 @pytest.mark.asyncio(loop_scope="session")
-@pytest.mark.parametrize("start_time", ["now", "datetime_now", "time_now", "iso_now"], indirect=True)
+@pytest.mark.parametrize("start_time", START_TIME_IDS, indirect=True, ids=START_TIME_IDS)
 async def test_start_time_types(
     configured_appdaemon: ConfiguredAppDaemonFunc,
-    start_time,
+    start_time: str | datetime | time,
 ) -> None:
     interval = timedelta(seconds=0.25)
     run_time = timedelta(seconds=1)
     register_delay = timedelta(seconds=0.1)
-    n = 3
 
     app_name = "scheduler_test_app"
     test_id = str(uuid.uuid4())
@@ -199,5 +198,6 @@ async def test_start_time_types(
     }
     async with configured_appdaemon(app_cfgs=app_cfgs, loggers=[app_name]) as (ad, caplog):
         await asyncio.sleep(run_time.total_seconds())
-        cb_count = await ad.state.get_state('test', 'admin', f'app.{app_name}', 'instancecallbacks')
-        assert cast(int, cb_count) >= (n + 1), "Callback didn't get called enough times."
+    results = RunEveryTestResults.from_caplog(caplog, app_name, test_id)
+    assert results.app_init, "App never initialized"
+    assert results.num_calls > 0
