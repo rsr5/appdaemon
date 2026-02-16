@@ -21,12 +21,8 @@ async def test_hello_world(configured_appdaemon: ConfiguredAppDaemonFunc, app_na
         }
     }
 
-    extra_ad_cfg = {
-        "app_dir": "apps/hello_world",
-    }
-
     logger.info("Test started")
-    async with configured_appdaemon(app_cfgs=app_cfgs, extra_ad_cfg=extra_ad_cfg) as (ad, caplog):
+    async with configured_appdaemon(app_cfgs=app_cfgs) as (ad, caplog):
         await ad.utility.app_update_event.wait()
         # await asyncio.sleep(1.0)
     logger.info("Test completed")
@@ -49,11 +45,7 @@ async def test_no_plugins(configured_appdaemon: ConfiguredAppDaemonFunc) -> None
         }
     }
 
-    extra_ad_cfg = {
-        "app_dir": "apps/hello_world",
-    }
-
-    async with configured_appdaemon(app_cfgs=app_cfgs, extra_ad_cfg=extra_ad_cfg) as (ad, caplog):
+    async with configured_appdaemon(app_cfgs=app_cfgs) as (ad, caplog):
         await ad.utility.app_update_event.wait()
 
     assert not any(r.levelname == "ERROR" for r in caplog.records)
