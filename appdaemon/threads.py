@@ -390,6 +390,14 @@ class Threading:
                 for thread in self.threads:
                     qsize = self.get_q(thread).qsize()
                     if qsize > 0:
+                        time_called = await self.get_state(
+                            "_threading",
+                            "admin",
+                            f"thread.{thread}",
+                            attribute="time_called",
+                        )
+                        assert isinstance(time_called, str), "time_called is not a string"
+
                         self.logger.warning(
                             "Queue size for thread %s is %s, callback is '%s' called at %s - possible thread starvation",
                             thread,
