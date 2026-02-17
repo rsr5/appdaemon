@@ -279,8 +279,8 @@ class State:
             A string made from ``uuid4().hex`` that is used to identify the callback. This can be used to cancel the
             callback later.
         """
-        if kwargs is None:
-            kwargs = {}
+        # Create the default kwargs dict
+        kwargs = {} if kwargs is None else kwargs
 
         if oneshot:  # this is still a little awkward, but it works until this can be refactored
             # This needs to be in the kwargs dict here that gets passed around later, so that the dispatcher knows to
@@ -646,7 +646,7 @@ class State:
         attribute: str | None = None,
         default: Any | None = None,
         copy: bool = True,
-    ):
+    ) -> Any:
         self.logger.debug("get_state: %s.%s %s %s", entity_id, attribute, default, copy)
 
         def maybe_copy(data):
@@ -713,16 +713,15 @@ class State:
 
         return new_state
 
-    async def add_to_state(self, name: str, namespace: str, entity_id: str, i):
-        value = await self.get_state(name, namespace, entity_id)
-        if value is not None:
-            value += i
-            await self.set_state(name, namespace, entity_id, state=value)
+    async def add_to_state(self, name: str, namespace: str, entity_id: str, i: int = 1):
+        match (await self.get_state(name, namespace, entity_id)):
+            case (int() | float()) as value:
+                await self.set_state(name, namespace, entity_id, state=value + i)
 
     async def add_to_attr(self, name: str, namespace: str, entity_id: str, attr, i):
         state = await self.get_state(name, namespace, entity_id, attribute="all")
         if state is not None:
-            state["attributes"][attr] = copy(state["attributes"][attr]) + i
+            state["attributes"][attr] = copy(state["attributes"].get(attr, 0)) + i
             await self.set_state(name, namespace, entity_id, attributes=state["attributes"])
 
     def register_state_services(self, namespace: str) -> None:
@@ -738,7 +737,7 @@ class State:
         *,
         entity_id: str | None = None,
         persist: bool = False,
-        writeback: Literal["safe", "hybrid"] = "safe",
+        writeback: ADWritebackType = ADWritebackType.safe,
         **kwargs: Any
     ) -> Any | None:
         self.logger.debug("state_services: %s, %s, %s, %s", namespace, domain, service, kwargs)
@@ -881,12 +880,13 @@ class State:
 
     async def set_namespace_state(self, namespace: str, state: dict[str, Any], persist: bool = False):
         if persist:
-            await self.add_persistent_namespace(namespace, writeback="safe")
+            await self.add_persistent_namespace(namespace, writeback=ADWritebackType.safe)
             self.state[namespace].update(state)
         else:
             # first in case it had been created before, it should be deleted
-            if isinstance(self.state.get(namespace), PersistentDict):
-                await self.remove_persistent_namespace(namespace, self.state[namespace])
+            match self.state.get(namespace):
+                case utils.PersistentDict() as ns:
+                    await self.remove_persistent_namespace(namespace, ns)
             self.state[namespace] = state
 
     def update_namespace_state(self, namespace: str | list[str], state: dict):

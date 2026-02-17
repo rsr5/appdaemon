@@ -4,11 +4,25 @@
 
 **Features**
 
-None
+- Transitioned project tooling to use [uv](https://docs.astral.sh/uv/)
+    - Dependency management with ``uv.lock`` instead of requirements.txt files.
+    - Dockerfile uses uv to install dependencies and run AppDaemon
+    - CI pipelines using GitHub Actions now use [`astral-sh/setup-uv`](https://github.com/astral-sh/setup-uv)
+    - VSCode tasks use uv to launch things.
+- Reworked CI pipeline
+    - `Build Documentation` runs directly whenever only docs files are changed.
+    - `Python CI` runs against all PRs and whenever python files get changed. Upon success completion:
+        - `Build Documentation` runs for tagged version commits, as well as `dev` branch
+        - `Build and Deploy Docker Image` runs for tagged version commits, as well as `dev` branch
+        - `PyPI Upload` runs for tagged version commits
+            - Runs the `functional` test group before uploading
+    - Stale issues no longer close after 15 days
+- Broke up the doc page on the AppDaemon internals into multiple pages and expanded content.
 
 **Fixes**
 
 - Remove outdated references to `app_init_delay`
+- Reworked how the `pin_app` and `pin_thread` settings work their way through the internals, and added corresponding tests.
 
 **Breaking Changes**
 
