@@ -450,8 +450,8 @@ class PinOutofRange(AppDaemonException):
 
     def __str__(self):
         if self.total_threads == 0:
-            return f"Pin thread {self.pin_thread} out of range. Must be between 0 and {self.total_threads -
-            1}"
+            max_thread_id = self.total_threads - 1
+            return f"Pin thread {self.pin_thread} out of range. Must be between 0 and {max_thread_id}"
         else:
             return f"No pin threads are allowed in this configuration: {self.pin_thread}"
 
