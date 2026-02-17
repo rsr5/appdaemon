@@ -74,8 +74,8 @@ class Services:
             domain (str): Domain of the service
             service (str): Name of the service
             callback (Callable): Callback function to be called when the service is invoked
-            __silent (bool, optional): If True, do not send a registration event. Defaults to False.
-            __name (str | None, optional): Name of the app registering the service. Defaults to None.
+            silent (bool, optional): If True, do not send a registration event. Defaults to False (send the event).
+            name (str | None, optional): Name of the app registering the service. Defaults to None.
             **kwargs: Additional keyword arguments to be passed to the callback function.
         """
         self.logger.debug(

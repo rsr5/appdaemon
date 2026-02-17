@@ -153,31 +153,24 @@ class Scheduler:
         callback: Callable | None,
         repeat: bool = False,
         type_: str | None = None,
-        interval: timedelta = timedelta(),
-        offset: timedelta = timedelta(),
+        interval: timedelta | None = None,
+        offset: timedelta | None = None,
         random_start: timedelta | None = None,
         random_end: timedelta | None = None,
         pin: bool | None = None,
         pin_thread: int | None = None,
         **kwargs,
     ) -> str:
+        interval = interval if interval is not None else timedelta()
+        offset = offset if offset is not None else timedelta()
+
         assert isinstance(aware_dt, datetime), "aware_dt must be a datetime object"
         assert aware_dt.tzinfo is not None, "aware_dt must be timezone aware"
         # aware_dt will include a timezone of some sort - convert to utc timezone
         basetime = aware_dt.astimezone(pytz.utc)
 
-        if pin_thread is not None:
-            # If the pin_thread is specified, force pin_app to True
-            pin_app = True
-        else:
-            # Otherwise, use the current pin_app setting in app management
-            if pin is None:
-                pin_app = self.AD.app_management.objects[name].pin_app
-            else:
-                pin_app = pin
-
-            if pin_thread is None:
-                pin_thread = self.AD.app_management.objects[name].pin_thread
+        pin_app, pin_thread = self.AD.threading.determine_thread(name, pin, pin_thread)
+        self.logger.debug("App '%s' scheduled on pinned thread", name, pin_app, pin_thread)
 
         # Ensure that there's a dict available for this app name
         if name not in self.schedule:
