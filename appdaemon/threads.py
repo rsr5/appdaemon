@@ -324,7 +324,9 @@ class Threading:
     # Thread Management
     #
 
-    def select_q(self, args):
+    def select_q(self, args: dict[str, Any]):
+        """Selects the queue for the thread and calls put_nowait on it to dispatch the callback to the worker thread."""
+
         match args:
             case {"pin_app": True, "pin_thread": tid, "name": str(name)}:
                 if tid is None:
@@ -491,6 +493,11 @@ class Threading:
     #
 
     async def add_thread(self, silent: bool = False, id: int | None = None) -> None:
+        """Create a new worker thread.
+
+        This is where the Thread object is actually created and started. The thread will begin running the `worker`
+        method as its target, and a new entity will be added to the `thread` domain in the `admin` namespace to track it.
+        """
         if id is None:
             thread_id = self.thread_count
         else:
@@ -818,6 +825,9 @@ class Threading:
         return executed
 
     async def dispatch_worker(self, name: str, args: dict[str, Any]):
+        """Apply any constraints and if they pass, dispatch the callback to the worker thread by using the ``select_q``
+        method."""
+
         # Give user the option to discard events during the app initialize methods to prevent race conditions
         state = await self.get_state(f"app.{name}")
         if state == "initializing" and self.AD.config.discard_init_events:
