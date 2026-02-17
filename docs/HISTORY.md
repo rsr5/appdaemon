@@ -20,7 +20,7 @@
 
 **Fixes**
 
-None
+- Remove outdated references to `app_init_delay`
 
 **Breaking Changes**
 

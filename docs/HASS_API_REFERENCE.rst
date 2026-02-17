@@ -93,9 +93,6 @@ This is the full list of configuration options available for the `Hass` plugin.
      - optional
      - If ``true``, suppress log messages related to :py:meth:`call_service <appdaemon.plugins.hass.hassapi.Hass.call_service>`.
        Defaults to ``false``.
-   * - ``app_init_delay``
-     - optional
-     - Delay in seconds before initializing apps and listening for events
    * - ``appdaemon_startup_conditions``
      - optional
      - See the `startup control section <#startup-control>`_ for more information.
