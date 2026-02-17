@@ -23,7 +23,6 @@ from typing import TYPE_CHECKING, Any, Literal, TypeVar
 from pydantic import ValidationError
 
 from . import exceptions as ade
-from . import utils
 from .dependency import DependencyResolutionFail, find_all_dependents, get_full_module_name
 from .dependency_manager import DependencyManager
 from .models.config import AllAppConfig, AppConfig, GlobalModule
@@ -583,7 +582,7 @@ class AppManagement:
                         pin_thread = cfg.pin_thread
 
                 # This module should already be loaded and stored in sys.modules
-                mod_obj = await utils.run_in_executor(self, importlib.import_module, module_name)
+                mod_obj = await run_in_executor(self, importlib.import_module, module_name)
                 mod_name = mod_obj.__name__
                 match mod_obj.__file__:
                     case str(mod_file):
@@ -1352,7 +1351,7 @@ class AppManagement:
         for seq_name in overlaped_sequences:
             current_seq = self.sequence_config.root[seq_name]
             new_seq = cfg.root[seq_name]
-            if not utils.deep_compare(new_seq.model_dump(), current_seq.model_dump()):
+            if not deep_compare(new_seq.model_dump(), current_seq.model_dump()):
                 self.logger.info(f"Sequence config modified: {seq_name}")
                 update_actions.sequences.reload.add(seq_name)
                 seq_eid = self.AD.sequences.normalized(seq_name)
@@ -1409,7 +1408,7 @@ class AppManagement:
                 await self.AD.loop.run_in_executor(
                     executor=self.AD.executor,
                     func=functools.partial(
-                        utils.write_config_file,
+                        write_config_file,
                         app_file,
                         **new_config
                     )

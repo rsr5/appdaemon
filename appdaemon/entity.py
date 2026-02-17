@@ -14,8 +14,8 @@ from .utils.str import format_timedelta
 from .utils.threading import sync_decorator
 
 if TYPE_CHECKING:
-    from appdaemon import ADAPI
-    from appdaemon.appdaemon import AppDaemon
+    from .adapi import ADAPI
+    from .appdaemon import AppDaemon
 
 
 @dataclass

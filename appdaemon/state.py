@@ -885,7 +885,7 @@ class State:
         else:
             # first in case it had been created before, it should be deleted
             match self.state.get(namespace):
-                case utils.PersistentDict() as ns:
+                case PersistentDict() as ns:
                     await self.remove_persistent_namespace(namespace, ns)
             self.state[namespace] = state
 

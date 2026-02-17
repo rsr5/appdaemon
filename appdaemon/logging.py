@@ -9,10 +9,13 @@ from logging import Logger, LogRecord, StreamHandler
 from logging.handlers import RotatingFileHandler
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
-from appdaemon.appdaemon import AppDaemon
+from .appdaemon import AppDaemon
+from .utils.functools import _sanitize_kwargs
+from .utils.misc import Singleton
+from .utils.threading import run_in_executor
 
 if TYPE_CHECKING:
-    from appdaemon.adapi import ADAPI
+    from .adapi import ADAPI
 
 
 class DuplicateFilter(logging.Filter):
