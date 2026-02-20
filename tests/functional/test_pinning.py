@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import logging.config
 from logging import LogRecord
 from random import randint
 
