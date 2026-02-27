@@ -2678,7 +2678,7 @@ class ADAPI:
         """
         return (await self.get_now(aware=True)).date()
 
-    def get_timezone(self) -> pytz.tzinfo.BaseTzInfo:
+    def get_timezone(self) -> dt.tzinfo:
         """Returns the current time zone."""
         return self.AD.time_zone
 
