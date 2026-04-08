@@ -74,6 +74,9 @@ COPY ./scripts/start.sh /start.sh
 # Copy the python dependencies built and installed in the previous stage
 COPY --from=builder /usr/local /usr/local
 
+ENV UV_PROJECT_ENVIRONMENT=/usr/local
+ENV UV_SYSTEM_PYTHON=true
+ENV UV_NO_MANAGED_PYTHON=true
 ENV PYTHONPATH="/usr/lib/python${PYTHON_RELEASE}/site-packages"
 
 # API Port

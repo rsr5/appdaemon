@@ -97,4 +97,4 @@ export PYTHONPATH="${PYTHONPATH}:$(find /usr/lib -name "site-packages" -type d |
 find $CONF -name requirements.txt -type f -not -empty -exec uv pip install --upgrade -r {} \;
 
 # Lets run it!
-exec uv run appdaemon -c $CONF "$@"
+exec uv run --frozen appdaemon -c $CONF "$@"
