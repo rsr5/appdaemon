@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-from appdaemon.utils import ADWritebackType
+from appdaemon.utils.state import ADWritebackType
 
 from .common import ParsedTimedelta
 
