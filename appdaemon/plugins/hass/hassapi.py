@@ -28,8 +28,7 @@ if __name__ == Path(__file__).name:
     # created at this point if the legacy import method is being used by an app. Using this accounts for the user maybe
     # having configured the error logger to use a different name than 'Error'
     Logging().get_error().warning(
-        "Importing 'hassapi' directly is deprecated and will be removed in a future version. "
-        "To use the Hass plugin use 'from appdaemon.plugins.hass import Hass' instead.",
+        "Importing 'hassapi' directly is deprecated and will be removed in a future version. To use the Hass plugin use 'from appdaemon.plugins.hass import Hass' instead.",
     )
 
 
@@ -60,7 +59,7 @@ class Hass(ADBase, ADAPI):
 
     @sync_decorator
     async def ping(self) -> float | None:
-        """Gets the number of seconds """
+        """Gets the number of seconds"""
         if (plugin := self._plugin) is not None:
             match await plugin.ping():
                 case {"ad_status": "OK", "ad_duration": ad_duration}:
@@ -106,11 +105,11 @@ class Hass(ADBase, ADAPI):
             ...     target={"entity_id": "light.living_room"},
             ... )
         """
-        if 'type' not in message:
+        if "type" not in message:
             self.logger.warning("call_ws: 'type' key is required in the message")
             return {"error": "'type' key is required"}
 
-        if 'id' in message:
+        if "id" in message:
             self.logger.warning("call_ws: 'id' key must not be included — it is assigned automatically")
             return {"error": "'id' key must not be included"}
 
@@ -144,7 +143,6 @@ class Hass(ADBase, ADAPI):
                         return True
         return False
 
-
     #
     # Internal Helpers
     # Methods that other methods
@@ -158,36 +156,23 @@ class Hass(ADBase, ADAPI):
         """
         namespace = namespace or self.namespace
         self._check_entity(namespace, entity_id)
-        return await self.call_service(
-            service=service,
-            namespace=namespace,
-            entity_id=entity_id,
-            **kwargs
-        )
+        return await self.call_service(service=service, namespace=namespace, entity_id=entity_id, **kwargs)
 
-    async def _domain_service_call(
-        self,
-        service: str,
-        entity_id: str | Iterable[str],
-        namespace: str | None = None,
-        **kwargs
-    ):
+    async def _domain_service_call(self, service: str, entity_id: str | Iterable[str], namespace: str | None = None, **kwargs):
         """Wraps up a common pattern in methods that have to use a certain domain.
 
-            - Namespace defaults to that of the plugin.
-            - Asserts that the entity is in the right domain.
-            - Displays a warning if the entity doesn't exist in the namespace.
+        - Namespace defaults to that of the plugin.
+        - Asserts that the entity is in the right domain.
+        - Displays a warning if the entity doesn't exist in the namespace.
         """
         namespace = namespace if namespace is not None else self.namespace
-        service_domain = service.split('/')[0]
+        service_domain = service.split("/")[0]
 
         def _check(entity_ids: Iterable[str]) -> None:
             for eid in entity_ids:
-                entity_domain = eid.split('.')[0]
+                entity_domain = eid.split(".")[0]
                 # This check needs to work for domains like "number" and "input_number"
-                assert entity_domain in service_domain, (
-                    f"Entity domain '{entity_domain}' does not match service domain '{service_domain}'"
-                )
+                assert entity_domain in service_domain, f"Entity domain '{entity_domain}' does not match service domain '{service_domain}'"
                 self._check_entity(namespace, eid)
 
         match entity_id:
@@ -199,34 +184,22 @@ class Hass(ADBase, ADAPI):
                 entity_id = entity_ids if isinstance(entity_ids, list) else list(entity_ids)
                 _check(entity_id)
             case _:
-                raise TypeError('entity_id must be a string or an iterable of strings')
+                raise TypeError("entity_id must be a string or an iterable of strings")
 
-        return await self.call_service(
-            service=service,
-            namespace=namespace,
-            entity_id=entity_id,
-            **kwargs
-        )
+        return await self.call_service(service=service, namespace=namespace, entity_id=entity_id, **kwargs)
 
-    async def _create_helper(
-        self,
-        friendly_name: str,
-        initial_val: Any,
-        type: str,
-        entity_id: str = None,
-        namespace: str | None = None
-    ) -> dict:
+    async def _create_helper(self, friendly_name: str, initial_val: Any, type: str, entity_id: str = None, namespace: str | None = None) -> dict:
         """Creates a new input number entity by using ``set_state`` on a non-existent one with the right format
 
         Entities created this way do not persist after Home Assistant restarts.
         """
-        assert type.startswith('input')
+        assert type.startswith("input")
 
         if entity_id is None:
-            cleaned_name = friendly_name.lower().replace(' ', '_').replace('-', '_')
-            entity_id = f'{type}.{cleaned_name}'
+            cleaned_name = friendly_name.lower().replace(" ", "_").replace("-", "_")
+            entity_id = f"{type}.{cleaned_name}"
 
-        assert entity_id.startswith(f'{type}.')
+        assert entity_id.startswith(f"{type}.")
 
         if not (await self.entity_exists(entity_id, namespace)):
             return await self.set_state(
@@ -237,8 +210,8 @@ class Hass(ADBase, ADAPI):
                 check_existence=False,
             )
         else:
-            self.log(f'Entity already exists: {friendly_name}')
-            return self.get_state(entity_id, 'all')
+            self.log(f"Entity already exists: {friendly_name}")
+            return self.get_state(entity_id, "all")
 
     #
     # Device Trackers
@@ -360,7 +333,7 @@ class Hass(ADBase, ADAPI):
 
         """
         details = await self.get_tracker_details(person, namespace, copy=False)
-        return any(state['state'] == 'home' for state in details.values())
+        return any(state["state"] == "home" for state in details.values())
 
     @sync_decorator
     async def everyone_home(self, person: bool = True, namespace: str | None = None) -> bool:
@@ -388,7 +361,7 @@ class Hass(ADBase, ADAPI):
 
         """
         details = await self.get_tracker_details(person, namespace, copy=False)
-        return all(state['state'] == 'home' for state in details.values())
+        return all(state["state"] == "home" for state in details.values())
 
     @sync_decorator
     async def noone_home(self, person: bool = True, namespace: str | None = None) -> bool:
@@ -435,7 +408,7 @@ class Hass(ADBase, ADAPI):
                         return self.anyone_home()
                     case "noone":
                         return self.noone_home()
-        raise ValueError(f'Invalid presence constraint: {value}')
+        raise ValueError(f"Invalid presence constraint: {value}")
 
     def constrain_person(self, value: Literal["everyone", "anyone", "noone"] | None = None) -> bool:
         """Returns True if unconstrained"""
@@ -450,7 +423,7 @@ class Hass(ADBase, ADAPI):
                         return self.anyone_home(person=True)
                     case "noone":
                         return self.noone_home(person=True)
-        raise ValueError(f'Invalid presence constraint: {value}')
+        raise ValueError(f"Invalid presence constraint: {value}")
 
     def constrain_input_boolean(self, value: str | Iterable[str]) -> bool:
         """Returns True if unconstrained - all input_booleans match the desired
@@ -465,7 +438,7 @@ class Hass(ADBase, ADAPI):
         assert isinstance(constraints, list) and all(isinstance(v, str) for v in constraints)
 
         for constraint in constraints:
-            parts = re.split(r',\s*', constraint)
+            parts = re.split(r",\s*", constraint)
             match len(parts):
                 case 2:
                     entity, desired_state = parts
@@ -490,7 +463,7 @@ class Hass(ADBase, ADAPI):
 
         for constraint in constraints:
             # using re.split allows for an arbitrary amount of whitespace after the comma
-            parts = re.split(r',\s*', constraint)
+            parts = re.split(r",\s*", constraint)
             entity = parts[0]
             desired_states = parts[1:]
             if self.get_state(entity, copy=False) not in desired_states:
@@ -678,12 +651,7 @@ class Hass(ADBase, ADAPI):
             >>> self.turn_on("light.office_1", color_name = "green")
 
         """
-        return await self._entity_service_call(
-            service="homeassistant/turn_on",
-            entity_id=entity_id,
-            namespace=namespace,
-            **kwargs
-        )
+        return await self._entity_service_call(service="homeassistant/turn_on", entity_id=entity_id, namespace=namespace, **kwargs)
 
     @sync_decorator
     async def turn_off(self, entity_id: str, namespace: str | None = None, **kwargs) -> dict:
@@ -716,12 +684,7 @@ class Hass(ADBase, ADAPI):
             >>> self.turn_off("scene.bedroom_on")
 
         """
-        return await self._entity_service_call(
-            service="homeassistant/turn_off",
-            entity_id=entity_id,
-            namespace=namespace,
-            **kwargs
-        )
+        return await self._entity_service_call(service="homeassistant/turn_off", entity_id=entity_id, namespace=namespace, **kwargs)
 
     @sync_decorator
     async def toggle(self, entity_id: str, namespace: str | None = None, **kwargs) -> dict:
@@ -748,12 +711,7 @@ class Hass(ADBase, ADAPI):
             >>> self.toggle("light.office_1", color_name="green")
 
         """
-        return await self._entity_service_call(
-            service="homeassistant/toggle",
-            entity_id=entity_id,
-            namespace=namespace,
-            **kwargs
-        )
+        return await self._entity_service_call(service="homeassistant/toggle", entity_id=entity_id, namespace=namespace, **kwargs)
 
     @sync_decorator
     async def get_history(
@@ -950,12 +908,7 @@ class Hass(ADBase, ADAPI):
             >>> self.set_value("input_number.alarm_hour", 6)
 
         """
-        return await self._domain_service_call(
-            service="input_number/set_value",
-            entity_id=entity_id,
-            value=value,
-            namespace=namespace
-        )
+        return await self._domain_service_call(service="input_number/set_value", entity_id=entity_id, value=value, namespace=namespace)
 
     @sync_decorator
     async def set_textvalue(self, entity_id: str, value: str, namespace: str | None = None) -> None:
@@ -980,12 +933,7 @@ class Hass(ADBase, ADAPI):
 
         """
         # https://www.home-assistant.io/integrations/input_text/
-        return await self._domain_service_call(
-            service="input_text/set_value",
-            entity_id=entity_id,
-            value=value,
-            namespace=namespace
-        )
+        return await self._domain_service_call(service="input_text/set_value", entity_id=entity_id, value=value, namespace=namespace)
 
     @sync_decorator
     async def set_options(self, entity_id: str, options: list[str], namespace: str | None = None) -> dict:
@@ -1075,7 +1023,7 @@ class Hass(ADBase, ADAPI):
 
     def last_pressed(self, button_id: str, namespace: str | None = None) -> datetime | None:
         """Only works on entities in the input_button domain"""
-        assert button_id.split('.')[0] == 'input_button'
+        assert button_id.split(".")[0] == "input_button"
         state = self.get_state(button_id, namespace=namespace)
         match state:
             case str():
@@ -1083,7 +1031,7 @@ class Hass(ADBase, ADAPI):
             case datetime():
                 return state
             case _:
-                self.logger.warning(f'Unknown time: {state}')
+                self.logger.warning(f"Unknown time: {state}")
 
     def time_since_last_press(self, button_id: str, namespace: str | None = None) -> timedelta | None:
         """Only works on entities in the input_button domain"""
@@ -1129,7 +1077,7 @@ class Hass(ADBase, ADAPI):
                 # will send a message through notify.smtp instead of the default notify.notify
 
         """
-        service = f'notify/{name}' if name is not None else 'notify/notify'
+        service = f"notify/{name}" if name is not None else "notify/notify"
         return await self.call_service(
             service=service,
             message=message,
@@ -1150,55 +1098,48 @@ class Hass(ADBase, ADAPI):
     def notify_android(
         self,
         device: str,
-        tag: str = 'appdaemon',
+        tag: str = "appdaemon",
         title: str | None = None,
         message: str | None = None,
         target: str | None = None,
         **kwargs: Any,
     ) -> dict:
         """Convenience method for quickly creating mobile Android notifications"""
-        kwargs.update({
-            'title': title,
-            'message': message,
-            'target': target,
-        })
+        kwargs.update(
+            {
+                "title": title,
+                "message": message,
+                "target": target,
+            }
+        )
         return self._notify_mobile_app(device, AndroidData, tag, **kwargs)
 
-    def notify_ios(self, device: str, tag: str = 'appdaemon', **kwargs) -> dict:
+    def notify_ios(self, device: str, tag: str = "appdaemon", **kwargs) -> dict:
         """Convenience method for quickly creating mobile iOS notifications"""
         return self._notify_mobile_app(device, iOSData, tag, **kwargs)
 
-    def _notify_mobile_app(
-        self,
-        device: str,
-        type_: str | Type[NotificationData],
-        tag: str = 'appdaemon',
-        **kwargs
-    ) -> dict:
+    def _notify_mobile_app(self, device: str, type_: str | Type[NotificationData], tag: str = "appdaemon", **kwargs) -> dict:
         match type_:
             case NotificationData():
                 pass
-            case 'android':
+            case "android":
                 model = AndroidData
-            case 'iOS' | 'ios':
+            case "iOS" | "ios":
                 model = iOSData
             case _:
-                raise ValueError(f'Unknown model type: {type_}')
+                raise ValueError(f"Unknown model type: {type_}")
 
         model = model.model_validate(kwargs)
         if model.data is not None:
             # Fills in the tag if it's blank
             model.data.tag = model.data.tag or tag
-        return self.call_service(
-            service=f'notify/mobile_app_{device}',
-            **model.model_dump(mode='json', exclude_none=True, by_alias=True)
-        )
+        return self.call_service(service=f"notify/mobile_app_{device}", **model.model_dump(mode="json", exclude_none=True, by_alias=True))
 
     def android_tts(
         self,
         device: str,
         tts_text: str,
-        media_stream: Literal['music_stream', 'alarm_stream', 'alarm_stream_max'] | None = 'music_stream',
+        media_stream: Literal["music_stream", "alarm_stream", "alarm_stream_max"] | None = "music_stream",
         critical: bool = False,
     ) -> dict:
         """Convenience method for correctly creating a TTS notification for Android devices.
@@ -1214,12 +1155,10 @@ class Hass(ADBase, ADAPI):
                 settings to have the TTS at the maximum possible volume. For more information see
                 `Critical Notifications <https://companion.home-assistant.io/docs/notifications/critical-notifications/#android>`_
         """
-        return self.call_service(
-            **AndroidNotification.tts(device, tts_text, media_stream, critical).to_service_call()
-        )
+        return self.call_service(**AndroidNotification.tts(device, tts_text, media_stream, critical).to_service_call())
 
     def listen_notification_action(self, callback: Callable, action: str) -> str:
-        return self.listen_event(callback, 'mobile_app_notification_action', action=action)
+        return self.listen_event(callback, "mobile_app_notification_action", action=action)
 
     # Backup/Restore
 
@@ -1381,26 +1320,26 @@ class Hass(ADBase, ADAPI):
 
     @sync_decorator
     async def media_play(self, entity_id: str | Iterable[str]) -> dict:
-        return await self._domain_service_call('media_player/media_play', entity_id)
+        return await self._domain_service_call("media_player/media_play", entity_id)
 
     @sync_decorator
     async def media_pause(self, entity_id: str | Iterable[str]) -> dict:
-        return await self._domain_service_call('media_player/media_pause', entity_id)
+        return await self._domain_service_call("media_player/media_pause", entity_id)
 
     @sync_decorator
     async def media_play_pause(self, entity_id: str | Iterable[str]) -> dict:
-        return await self._domain_service_call('media_player/media_play_pause', entity_id)
+        return await self._domain_service_call("media_player/media_play_pause", entity_id)
 
     @sync_decorator
     async def media_mute(self, entity_id: str | Iterable[str]) -> dict:
         # https://www.home-assistant.io/integrations/media_player/#action-media_playervolume_mute
-        return await self._domain_service_call('media_player/volume_mute', entity_id)
+        return await self._domain_service_call("media_player/volume_mute", entity_id)
 
     @sync_decorator
     async def media_set_volume(self, entity_id: str | Iterable[str], volume: float = 0.5) -> dict:
         # https://www.home-assistant.io/integrations/media_player/#action-media_playervolume_set
         return await self._domain_service_call(
-            service='media_player/volume_set',
+            service="media_player/volume_set",
             entity_id=entity_id,
             volume_level=volume,
         )
@@ -1411,21 +1350,12 @@ class Hass(ADBase, ADAPI):
             seek_position = seek_position.total_seconds()
 
         # https://www.home-assistant.io/integrations/media_player/#action-media_playermedia_seek
-        return await self._domain_service_call(
-            service='media_player/media_seek',
-            entity_id=entity_id,
-            seek_position=seek_position
-        )
+        return await self._domain_service_call(service="media_player/media_seek", entity_id=entity_id, seek_position=seek_position)
 
     # Calendar
 
     def get_calendar_events(
-        self,
-        entity_id: str = "calendar.localcalendar",
-        days: int = 1,
-        hours: int | None = None,
-        minutes: int | None = None,
-        namespace: str | None = None
+        self, entity_id: str = "calendar.localcalendar", days: int = 1, hours: int | None = None, minutes: int | None = None, namespace: str | None = None
     ) -> list[dict[str, str | datetime]] | None:
         """
         Retrieve calendar events for a specified entity within a given number of days.
@@ -1452,39 +1382,27 @@ class Hass(ADBase, ADAPI):
             >>>     self.log(f'{event["summary"]} starts at {event["start"]}')
         """
         duration = {
-            'days': days,
-            'hours': hours,
-            'minutes': minutes,
+            "days": days,
+            "hours": hours,
+            "minutes": minutes,
         }
-        duration = {k:v for k,v in duration.items() if v is not None}
+        duration = {k: v for k, v in duration.items() if v is not None}
 
         res = self.call_service(
-            'calendar/get_events',
+            "calendar/get_events",
             namespace=namespace,
             entity_id=entity_id,
             duration=duration,
         )
         match res:
             case {"success": True, "result": {"response": resp}}:
-                return [
-                    {
-                        k: datetime.fromisoformat(v) if k in ('start', 'end') else v
-                        for k, v in event.items()
-                    }
-                    for event in resp[entity_id]['events']
-                ]
+                return [{k: datetime.fromisoformat(v) if k in ("start", "end") else v for k, v in event.items()} for event in resp[entity_id]["events"]]
             case _:
                 self.logger.error("Failed to get calendar events for '%s'", entity_id)
 
     # Scripts
 
-    def run_script(
-        self,
-        entity_id: str,
-        namespace: str | None = None,
-        return_immediately: bool = True,
-        **kwargs
-    ) -> dict:
+    def run_script(self, entity_id: str, namespace: str | None = None, return_immediately: bool = True, **kwargs) -> dict:
         """Runs a script in Home Assistant
 
         Args:
@@ -1498,27 +1416,28 @@ class Hass(ADBase, ADAPI):
         Returns:
             dict: The result of the service call.
         """
-        if entity_id.startswith('script.'):
-            domain, script_name = entity_id.split('.', 1)
-        elif entity_id.startswith('script/'):
-            domain, script_name = entity_id.split('/', 1)
+        if entity_id.startswith("script."):
+            domain, script_name = entity_id.split(".", 1)
+        elif entity_id.startswith("script/"):
+            domain, script_name = entity_id.split("/", 1)
         else:
-            domain = 'script'
+            domain = "script"
             script_name = entity_id
 
-        entity_id = f'{domain}.{script_name}'
+        entity_id = f"{domain}.{script_name}"
 
         if return_immediately:
-            service = 'script/turn_on'
+            service = "script/turn_on"
             service_data = {"variables": kwargs}
         else:
-            service = f'{domain}/{script_name}'
+            service = f"{domain}/{script_name}"
             service_data = kwargs
 
         namespace = namespace if namespace is not None else self.namespace
         try:
             return self.call_service(
-                service, namespace,
+                service,
+                namespace,
                 entity_id=entity_id,
                 service_data=service_data,
             )
@@ -1573,12 +1492,12 @@ class Hass(ADBase, ADAPI):
     def _template_command(self, command: str, *args: str) -> Any:
         """Internal AppDaemon function to format calling a single template command correctly."""
         if len(args) == 0:
-            return self.render_template(f'{{{{ {command}() }}}}')
+            return self.render_template(f"{{{{ {command}() }}}}")
         else:
             args = tuple(a for a in args if a is not None)
             assert all(isinstance(i, str) for i in args), f"All inputs must be strings, got {args}"
-            arg_str = ', '.join(f"'{i}'" for i in args)
-            cmd_str = f'{{{{ {command}({arg_str}) }}}}'
+            arg_str = ", ".join(f"'{i}'" for i in args)
+            cmd_str = f"{{{{ {command}({arg_str}) }}}}"
             self.logger.debug("Template command: %s", cmd_str)
             return self.render_template(cmd_str)
 
@@ -1591,7 +1510,7 @@ class Hass(ADBase, ADAPI):
         See `device functions <https://www.home-assistant.io/docs/configuration/templating/#devices>`_ for more
         information.
         """
-        return self._template_command('device_entities', device_id)
+        return self._template_command("device_entities", device_id)
 
     def device_attr(self, device_or_entity_id: str, attr_name: str) -> str:
         """Get the value of attr_name for the given device or entity ID.
@@ -1608,7 +1527,7 @@ class Hass(ADBase, ADAPI):
         - ``name``
         - ``sw_version``
         """
-        return self._template_command('device_attr', device_or_entity_id, attr_name)
+        return self._template_command("device_attr", device_or_entity_id, attr_name)
 
     def is_device_attr(self, device_or_entity_id: str, attr_name: str, attr_value: str | int | float) -> bool:
         """Get returns whether the value of attr_name for the given device or entity ID matches attr_value.
@@ -1616,7 +1535,7 @@ class Hass(ADBase, ADAPI):
         See `device functions <https://www.home-assistant.io/docs/configuration/templating/#devices>`_ for more
         information.
         """
-        return self._template_command('is_device_attr', device_or_entity_id, attr_name, str(attr_value))
+        return self._template_command("is_device_attr", device_or_entity_id, attr_name, str(attr_value))
 
     def device_id(self, entity_id: str) -> str:
         """Get the device ID for a given entity ID or device name.
@@ -1624,7 +1543,7 @@ class Hass(ADBase, ADAPI):
         See `device functions <https://www.home-assistant.io/docs/configuration/templating/#devices>`_ for more
         information.
         """
-        return self._template_command('device_id', entity_id)
+        return self._template_command("device_id", entity_id)
 
     # Areas
     # https://www.home-assistant.io/docs/configuration/templating/#areas
@@ -1634,35 +1553,35 @@ class Hass(ADBase, ADAPI):
 
         See `area functions <https://www.home-assistant.io/docs/configuration/templating/#areas>`_ for more information.
         """
-        return self._template_command('areas')
+        return self._template_command("areas")
 
     def area_id(self, lookup_value: str) -> str:
         """Get the area ID for a given device ID, entity ID, or area name.
 
         See `area functions <https://www.home-assistant.io/docs/configuration/templating/#areas>`_ for more information.
         """
-        return self._template_command('area_id', lookup_value)
+        return self._template_command("area_id", lookup_value)
 
     def area_name(self, lookup_value: str) -> str:
         """Get the area name for a given device ID, entity ID, or area ID.
 
         See `area functions <https://www.home-assistant.io/docs/configuration/templating/#areas>`_ for more information.
         """
-        return self._template_command('area_name', lookup_value)
+        return self._template_command("area_name", lookup_value)
 
     def area_entities(self, area_name_or_id: str) -> list[str]:
         """Get the list of entity IDs tied to a given area ID or name.
 
         See `area functions <https://www.home-assistant.io/docs/configuration/templating/#areas>`_ for more information.
         """
-        return self._template_command('area_entities', area_name_or_id)
+        return self._template_command("area_entities", area_name_or_id)
 
     def area_devices(self, area_name_or_id: str) -> list[str]:
         """Get the list of device IDs tied to a given area ID or name.
 
         See `area functions <https://www.home-assistant.io/docs/configuration/templating/#areas>`_ for more information.
         """
-        return self._template_command('area_devices', area_name_or_id)
+        return self._template_command("area_devices", area_name_or_id)
 
     # Entities for an Integration
     # https://www.home-assistant.io/docs/configuration/templating/#entities-for-an-integration
@@ -1674,9 +1593,8 @@ class Hass(ADBase, ADAPI):
         <https://www.home-assistant.io/docs/configuration/templating/#entities-for-an-integration>`_ for more
         information.
         """
-        entities = self._template_command('integration_entities', integration)
-        assert isinstance(entities, list) and all(isinstance(e, str) for e in entities), \
-            'Invalid return type from integration_entities'
+        entities = self._template_command("integration_entities", integration)
+        assert isinstance(entities, list) and all(isinstance(e, str) for e in entities), "Invalid return type from integration_entities"
         return entities
 
     # Labels
@@ -1688,7 +1606,7 @@ class Hass(ADBase, ADAPI):
         See `label functions <https://www.home-assistant.io/docs/configuration/templating/#labels>`_ for more
         information.
         """
-        return self._template_command('labels')
+        return self._template_command("labels")
 
     def label_id(self, lookup_value: str) -> str:
         """Get the label ID for a given label name.
@@ -1696,7 +1614,7 @@ class Hass(ADBase, ADAPI):
         See `label functions <https://www.home-assistant.io/docs/configuration/templating/#labels>`_ for more
         information.
         """
-        return self._template_command('label_id', lookup_value)
+        return self._template_command("label_id", lookup_value)
 
     def label_name(self, lookup_value: str) -> str:
         """Get the label name for a given label ID.
@@ -1704,7 +1622,7 @@ class Hass(ADBase, ADAPI):
         See `label functions <https://www.home-assistant.io/docs/configuration/templating/#labels>`_ for more
         information.
         """
-        return self._template_command('label_name', lookup_value)
+        return self._template_command("label_name", lookup_value)
 
     def label_areas(self, label_name_or_id: str) -> list[str]:
         """Get the list of area IDs tied to a given label ID or name.
@@ -1712,7 +1630,7 @@ class Hass(ADBase, ADAPI):
         See `label functions <https://www.home-assistant.io/docs/configuration/templating/#labels>`_ for more
         information.
         """
-        return self._template_command('label_areas', label_name_or_id)
+        return self._template_command("label_areas", label_name_or_id)
 
     def label_devices(self, label_name_or_id: str) -> list[str]:
         """Get the list of device IDs tied to a given label ID or name.
@@ -1720,7 +1638,7 @@ class Hass(ADBase, ADAPI):
         See `label functions <https://www.home-assistant.io/docs/configuration/templating/#labels>`_ for more
         information.
         """
-        return self._template_command('label_devices', label_name_or_id)
+        return self._template_command("label_devices", label_name_or_id)
 
     def label_entities(self, label_name_or_id: str) -> list[str]:
         """Get the list of entity IDs tied to a given label ID or name.
@@ -1728,7 +1646,7 @@ class Hass(ADBase, ADAPI):
         See `label functions <https://www.home-assistant.io/docs/configuration/templating/#labels>`_ for more
         information.
         """
-        return self._template_command('label_entities', label_name_or_id)
+        return self._template_command("label_entities", label_name_or_id)
 
     # Conversation
     # https://developers.home-assistant.io/docs/intent_conversation_api
@@ -1809,7 +1727,7 @@ class Hass(ADBase, ADAPI):
             ...                 self.log(eids)
         """
         return self.call_service(
-            service='conversation/process',
+            service="conversation/process",
             text=text,
             language=language,
             agent_id=agent_id,
@@ -1844,7 +1762,7 @@ class Hass(ADBase, ADAPI):
             dict: The acknowledgement response from Home Assistant.
         """
         return self.call_service(
-            service='conversation/reload',
+            service="conversation/reload",
             language=language,
             agent_id=agent_id,
             namespace=namespace if namespace is not None else self.namespace,
